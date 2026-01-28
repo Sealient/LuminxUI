@@ -7,6 +7,7 @@ local lib = {}
 
 -- global accent color used by various UI elements (modifiable from Settings)
 local accentColor = Color3.fromRGB(0,170,255)
+local LIB_VERSION = "1.0.0"
 
 function lib:CreateWindow(titleText)
 	local ScreenGui = Instance.new("ScreenGui")
@@ -94,6 +95,168 @@ function lib:CreateWindow(titleText)
 	TabHolder.Parent = Sidebar
 	Instance.new("UIListLayout", TabHolder).Padding = UDim.new(0, 2)
 
+	-- Floating profile in the bottom-left of the sidebar
+	local profileFrame = Instance.new("Frame", Sidebar)
+	profileFrame.Name = "Profile"
+	profileFrame.Size = UDim2.new(0, 150, 0, 48)
+	profileFrame.Position = UDim2.new(0, 10, 1, -62)
+	profileFrame.BackgroundColor3 = Color3.fromRGB(40,42,46)
+	profileFrame.BackgroundTransparency = 0
+	profileFrame.BorderSizePixel = 0
+	profileFrame.ZIndex = 20
+	profileFrame.ClipsDescendants = false
+	Instance.new("UICorner", profileFrame).CornerRadius = UDim.new(0,6)
+	local profileStroke = Instance.new("UIStroke", profileFrame)
+	profileStroke.Color = Color3.fromRGB(35,35,35)
+	profileStroke.Transparency = 0.7
+	profileStroke.Thickness = 1
+
+	-- avatar background (circular) to ensure we always have a visible circle behind the image
+	local avatarBG = Instance.new("Frame", profileFrame)
+	avatarBG.Name = "AvatarBG"
+	avatarBG.Size = UDim2.new(0,36,0,36)
+	avatarBG.Position = UDim2.new(0,8,0,6)
+	avatarBG.BackgroundColor3 = Color3.fromRGB(96,96,96)
+	avatarBG.BorderSizePixel = 0
+    -- ensure the avatar background sits behind text
+    avatarBG.ZIndex = 21
+	Instance.new("UICorner", avatarBG).CornerRadius = UDim.new(1,0)
+
+	local avatar = Instance.new("ImageLabel", avatarBG)
+	avatar.Name = "Avatar"
+	avatar.Size = UDim2.new(1,0,1,0)
+	avatar.Position = UDim2.new(0,0,0,0)
+	avatar.BackgroundTransparency = 1
+	avatar.ScaleType = Enum.ScaleType.Fit
+	avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(game.Players.LocalPlayer.UserId) .. "&w=48&h=48"
+	avatar.ZIndex = 22
+	Instance.new("UICorner", avatar).CornerRadius = UDim.new(1,0)
+
+	-- info container to avoid overlap with avatar (centered name + stats)
+	local infoFrame = Instance.new("Frame", profileFrame)
+	infoFrame.Name = "Info"
+	infoFrame.Position = UDim2.new(0,52,0,6)
+	infoFrame.Size = UDim2.new(1,-64,1,-12)
+	infoFrame.BackgroundTransparency = 1
+    -- keep info above avatar
+    infoFrame.ZIndex = 23
+
+	local nameLbl = Instance.new("TextLabel", infoFrame)
+	nameLbl.Name = "Name"
+	nameLbl.Position = UDim2.new(0,0,0,0)
+	nameLbl.Size = UDim2.new(1,0,0,14)
+	nameLbl.BackgroundTransparency = 1
+	nameLbl.Text = game.Players.LocalPlayer.Name
+	nameLbl.Font = Enum.Font.RobotoMono
+nameLbl.TextSize = 12
+nameLbl.TextColor3 = Color3.fromRGB(255,255,255)
+nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+nameLbl.TextScaled = false
+nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+nameLbl.ZIndex = 24
+nameLbl.TextTransparency = 0
+if not nameLbl.Text or nameLbl.Text == "" then nameLbl.Text = game.Players.LocalPlayer.Name or "Player" end
+	nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	-- stats row (fps / ping / version)
+	local statsFrame = Instance.new("Frame", infoFrame)
+	statsFrame.Name = "Stats"
+	statsFrame.Position = UDim2.new(0,0,0,18)
+	statsFrame.Size = UDim2.new(1,0,0,12)
+	statsFrame.BackgroundTransparency = 1
+    statsFrame.ZIndex = 23
+
+	local fpsLbl = Instance.new("TextLabel", statsFrame)
+	fpsLbl.Name = "FPS"
+	fpsLbl.Size = UDim2.new(0.33, -6, 1, 0)
+	fpsLbl.Position = UDim2.new(0, 0, 0, 0)
+	fpsLbl.BackgroundTransparency = 1
+	fpsLbl.Text = "-- FPS"
+	fpsLbl.Font = Enum.Font.RobotoMono
+	fpsLbl.TextSize = 10
+	fpsLbl.TextColor3 = Color3.fromRGB(200,200,200)
+	fpsLbl.TextXAlignment = Enum.TextXAlignment.Left
+	fpsLbl.ZIndex = 24
+	fpsLbl.TextTransparency = 0
+
+	local pingLbl = Instance.new("TextLabel", statsFrame)
+	pingLbl.Name = "Ping"
+	pingLbl.Size = UDim2.new(0.34, -6, 1, 0)
+	pingLbl.Position = UDim2.new(0.33, 3, 0, 0)
+	pingLbl.BackgroundTransparency = 1
+	pingLbl.Text = "-- ms"
+	pingLbl.Font = Enum.Font.RobotoMono
+	pingLbl.TextSize = 10
+	pingLbl.TextColor3 = Color3.fromRGB(200,200,200)
+	pingLbl.TextXAlignment = Enum.TextXAlignment.Center
+	pingLbl.ZIndex = 24
+	pingLbl.TextTransparency = 0
+
+	local verLbl = Instance.new("TextLabel", statsFrame)
+	verLbl.Name = "Version"
+	verLbl.Size = UDim2.new(0.33, 0, 1, 0)
+	verLbl.Position = UDim2.new(0.67, 0, 0, 0)
+	verLbl.BackgroundTransparency = 1
+	verLbl.Text = LIB_VERSION
+	verLbl.Font = Enum.Font.RobotoMono
+	verLbl.TextSize = 10
+	verLbl.TextColor3 = Color3.fromRGB(190,190,190)
+	verLbl.TextXAlignment = Enum.TextXAlignment.Right
+	verLbl.ZIndex = 24
+	verLbl.TextTransparency = 0
+
+	local accentDot = Instance.new("Frame", profileFrame)
+	accentDot.Name = "AccentDot"
+	accentDot.Size = UDim2.new(0,8,0,8)
+	accentDot.Position = UDim2.new(1,-12,0,8)
+	accentDot.BackgroundColor3 = accentColor
+	accentDot.BorderSizePixel = 0
+	Instance.new("UICorner", accentDot).CornerRadius = UDim.new(1,0)
+
+	-- subtle hover effect
+	profileFrame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			pcall(function()
+				TweenService:Create(profileFrame, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(48,50,54)}):Play()
+			end)
+		end
+	end)
+	profileFrame.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement then
+			pcall(function()
+				TweenService:Create(profileFrame, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(40,42,46)}):Play()
+			end)
+		end
+	end)
+
+	-- update FPS / Ping periodically
+	local fpsAcc, fpsCount, fpsTimer = 0, 0, 0
+	local statsConn
+	statsConn = RunService.Heartbeat:Connect(function(dt)
+		-- FPS averaging
+		if dt and dt > 0 then
+			fpsAcc = fpsAcc + (1 / dt)
+			fpsCount = fpsCount + 1
+			fpsTimer = fpsTimer + dt
+		end
+		if fpsTimer >= 0.6 then
+			local avg = math.floor((fpsAcc / math.max(1, fpsCount)) + 0.5)
+			if fpsLbl and fpsLbl.Text then fpsLbl.Text = tostring(avg) .. " FPS" end
+			fpsAcc, fpsCount, fpsTimer = 0, 0, 0
+		end
+		-- ping (try to read Stats service safely)
+		local pingVal = 0
+		pcall(function()
+			local net = game:GetService("Stats").Network
+			if net and net.ServerStatsItem and net.ServerStatsItem["Data Ping"] and net.ServerStatsItem["Data Ping"].GetValue then
+				pingVal = math.floor(net.ServerStatsItem["Data Ping"]:GetValue())
+			end
+		end)
+		if pingLbl and pingLbl.Text then pingLbl.Text = tostring(pingVal) .. " ms" end
+		-- cleanup if profile removed
+		if not profileFrame or not profileFrame.Parent then if statsConn then statsConn:Disconnect(); statsConn = nil end end
+	end)
+
 	-- SEARCH BAR
 	local SearchFrame = Instance.new("Frame")
 	SearchFrame.Size = UDim2.new(1, -210, 0, 32)
@@ -179,6 +342,7 @@ function lib:CreateWindow(titleText)
 		accentBar.Size = UDim2.new(0,4,1,0)
 		accentBar.Position = UDim2.new(0,0,0,0)
 		accentBar.BackgroundColor3 = accent
+		accentBar.ZIndex = nf.ZIndex
 		Instance.new("UICorner", accentBar).CornerRadius = UDim.new(0,3)
 
 		local titleLbl = Instance.new("TextLabel", nf)
@@ -186,7 +350,8 @@ function lib:CreateWindow(titleText)
 		titleLbl.Size = UDim2.new(1, -40, 0, 16)
 		titleLbl.BackgroundTransparency = 1
 		titleLbl.Text = title or "Notification"
-		titleLbl.TextColor3 = Color3.fromRGB(235,235,235)
+		titleLbl.TextColor3 = accent
+		titleLbl.ZIndex = nf.ZIndex + 1
 		titleLbl.Font = Enum.Font.RobotoMono
 		titleLbl.TextSize = 13
 		titleLbl.TextXAlignment = Enum.TextXAlignment.Left
@@ -202,6 +367,7 @@ function lib:CreateWindow(titleText)
 		bodyLbl.TextXAlignment = Enum.TextXAlignment.Left
 		bodyLbl.TextYAlignment = Enum.TextYAlignment.Top
 		bodyLbl.TextWrapped = true
+		bodyLbl.ZIndex = nf.ZIndex + 1
 
 		local closeBtn = Instance.new("TextButton", nf)
 		closeBtn.Size = UDim2.new(0,20,0,20)
@@ -212,13 +378,14 @@ function lib:CreateWindow(titleText)
 		closeBtn.TextSize = 14
 		closeBtn.TextColor3 = Color3.fromRGB(160,160,160)
 		closeBtn.AutoButtonColor = true
+		closeBtn.ZIndex = nf.ZIndex + 1
 
 		local data = {Frame = nf, Alive = true}
 		table.insert(activeNotifs, data)
 		shiftNotifs()
 
 		-- entrance animation
-		TweenService:Create(nf, TweenInfo.new(0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -20, 0, (#activeNotifs-1) * 66), BackgroundTransparency = 0.2}):Play()
+			TweenService:Create(nf, TweenInfo.new(0.26, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -20, 0, (#activeNotifs-1) * 66), BackgroundTransparency = 0.2}):Play()
 
 		local alive = true
 		local elapsed = 0
@@ -226,13 +393,13 @@ function lib:CreateWindow(titleText)
 
 		local function cleanup()
 			if not data.Alive then return end
-			data.Alive = false
-			-- remove from activeNotifs
-			for i, v in ipairs(activeNotifs) do if v == data then table.remove(activeNotifs, i); break end end
-			-- exit animation (slide right and fade)
-			TweenService:Create(nf, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {Position = UDim2.new(1, 380, 0, nf.Position.Y.Offset), BackgroundTransparency = 1}):Play()
-			task.delay(0.18, function() pcall(function() nf:Destroy() end) end)
-			shiftNotifs()
+				data.Alive = false
+				-- remove from activeNotifs
+				for i, v in ipairs(activeNotifs) do if v == data then table.remove(activeNotifs, i); break end end
+				-- exit animation (slide right and fade)
+				TweenService:Create(nf, TweenInfo.new(0.18, Enum.EasingStyle.Quad), {Position = UDim2.new(1, 380, 0, nf.Position.Y.Offset), BackgroundTransparency = 1}):Play()
+				task.delay(0.18, function() pcall(function() nf:Destroy() end) end)
+				shiftNotifs()
 		end
 
 		-- hover to pause
@@ -1043,8 +1210,10 @@ function lib:CreateWindow(titleText)
 			end)
 		end
 
+		pageFunctions.Page = Page
 		return pageFunctions
 	end
+
 
 	-- Create a mandatory Settings tab with a few theme and notification options
 	local SettingsTab = windowFunctions:CreateTab("Settings")
@@ -1063,6 +1232,7 @@ function lib:CreateWindow(titleText)
 		accentColor = col
 		Indicator.BackgroundColor3 = accentColor
 		SearchStroke.Color = accentColor
+		if accentDot then accentDot.BackgroundColor3 = accentColor end
 	end)
 
 	SettingsTab:CreateSlider("UI Scale (%)", 50, 150, 100, function(value)
@@ -1089,7 +1259,257 @@ function lib:CreateWindow(titleText)
 		accentColor = Color3.fromRGB(0,170,255)
 		Indicator.BackgroundColor3 = accentColor
 		SearchStroke.Color = accentColor
+		if accentDot then accentDot.BackgroundColor3 = accentColor end
 		MainFrame.BackgroundColor3 = Color3.fromRGB(10,10,10)
+	end)
+
+	-- Enhanced Mods tab: cards with Install / Update / Delete and enable toggle
+	local ModsTab = windowFunctions:CreateTab("Mods")
+	ModsTab:CreateSection("Available Mods")
+
+	local ReplicatedStorage = game:GetService("ReplicatedStorage")
+	local HttpService = game:GetService("HttpService")
+	local modFolder = ReplicatedStorage:FindFirstChild("LuminxMods") or Instance.new("Folder", ReplicatedStorage)
+	modFolder.Name = "LuminxMods"
+
+	local modsState = {}
+
+	local function sanitizeName(name)
+		return tostring(name):gsub("%.lua$", "")
+	end
+
+		-- Helper: convert various GitHub/raw/blob urls or filenames into a usable raw URL
+		local function toRawURL(url)
+			if not url or url == "" then return nil end
+			if tostring(url):find("raw.githubusercontent.com") then return url end
+			if tostring(url):find("github.com") and tostring(url):find("/blob/") then
+				-- transform https://github.com/OWNER/REPO/blob/BRANCH/path -> https://raw.githubusercontent.com/OWNER/REPO/BRANCH/path
+				local raw = tostring(url):gsub("https://github.com/", "https://raw.githubusercontent.com/"):gsub("/blob/", "/")
+				return raw
+			end
+			return tostring(url)
+		end
+
+		local function resolveDownloadURL(mod)
+			if not mod then return nil end
+			if mod.download_url and type(mod.download_url) == "string" and mod.download_url ~= "" then
+				return toRawURL(mod.download_url)
+			end
+			if mod.filename and type(mod.filename) == "string" and mod.filename ~= "" then
+				return "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/" .. mod.filename
+			end
+			return nil
+		end
+
+	local function createModCard(mod)
+		local p = ModsTab.Page
+		if not p then return end
+		local card = Instance.new("Frame", p)
+		card.Size = UDim2.new(1, -10, 0, 84)
+		card.BackgroundColor3 = Color3.fromRGB(28,28,28)
+		card.BorderSizePixel = 0
+		Instance.new("UICorner", card).CornerRadius = UDim.new(0,6)
+
+		local nameLbl = Instance.new("TextLabel", card)
+		nameLbl.Position = UDim2.new(0,8,0,8)
+		nameLbl.Size = UDim2.new(1,-160,0,18)
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.Font = Enum.Font.RobotoMono
+		nameLbl.TextSize = 14
+		nameLbl.TextColor3 = Color3.fromRGB(230,230,230)
+		nameLbl.Text = mod.name or mod.filename or "Unnamed Mod"
+
+		local verLbl = Instance.new("TextLabel", card)
+		verLbl.Position = UDim2.new(1,-142,0,8)
+		verLbl.Size = UDim2.new(0,60,0,16)
+		verLbl.BackgroundTransparency = 1
+		verLbl.TextColor3 = Color3.fromRGB(160,160,160)
+		verLbl.Font = Enum.Font.RobotoMono
+		verLbl.TextSize = 11
+		verLbl.Text = "v"..(mod.version or "?.?")
+
+		local statusLbl = Instance.new("TextLabel", card)
+		statusLbl.Position = UDim2.new(1,-74,0,8)
+		statusLbl.Size = UDim2.new(0,66,0,16)
+		statusLbl.BackgroundTransparency = 1
+		statusLbl.TextColor3 = Color3.fromRGB(160,160,160)
+		statusLbl.Font = Enum.Font.RobotoMono
+		statusLbl.TextSize = 11
+		statusLbl.Text = "Not installed"
+
+		local descLbl = Instance.new("TextLabel", card)
+		descLbl.Position = UDim2.new(0,8,0,28)
+		descLbl.Size = UDim2.new(1,-16,0,36)
+		descLbl.BackgroundTransparency = 1
+		descLbl.TextColor3 = Color3.fromRGB(180,180,180)
+		descLbl.Font = Enum.Font.SourceSans
+		descLbl.TextSize = 12
+		descLbl.TextWrapped = true
+		descLbl.Text = mod.description or mod.desc or "No description available."
+
+		-- Buttons: Install / Update / Delete
+		local installBtn = Instance.new("TextButton", card)
+		installBtn.Position = UDim2.new(0,8,1,-28)
+		installBtn.Size = UDim2.new(0,70,0,20)
+		installBtn.Text = "Install"
+		installBtn.Font = Enum.Font.SourceSans
+		installBtn.TextSize = 12
+		installBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+		installBtn.TextColor3 = Color3.fromRGB(200,200,200)
+		Instance.new("UICorner", installBtn).CornerRadius = UDim.new(0,4)
+
+		local updateBtn = Instance.new("TextButton", card)
+		updateBtn.Position = UDim2.new(0,86,1,-28)
+		updateBtn.Size = UDim2.new(0,70,0,20)
+		updateBtn.Text = "Update"
+		updateBtn.Font = Enum.Font.SourceSans
+		updateBtn.TextSize = 12
+		updateBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+		updateBtn.TextColor3 = Color3.fromRGB(200,200,200)
+		Instance.new("UICorner", updateBtn).CornerRadius = UDim.new(0,4)
+
+		local deleteBtn = Instance.new("TextButton", card)
+		deleteBtn.Position = UDim2.new(0,164,1,-28)
+		deleteBtn.Size = UDim2.new(0,70,0,20)
+		deleteBtn.Text = "Delete"
+		deleteBtn.Font = Enum.Font.SourceSans
+		deleteBtn.TextSize = 12
+		deleteBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+		deleteBtn.TextColor3 = Color3.fromRGB(200,200,200)
+		Instance.new("UICorner", deleteBtn).CornerRadius = UDim.new(0,4)
+
+		-- Enable toggle
+		local enableToggle = Instance.new("TextButton", card)
+		enableToggle.Position = UDim2.new(1,-72,1,-28)
+		enableToggle.Size = UDim2.new(0,64,0,20)
+		enableToggle.Text = "Enable"
+		enableToggle.Font = Enum.Font.SourceSans
+		enableToggle.TextSize = 12
+		enableToggle.BackgroundColor3 = Color3.fromRGB(40,40,40)
+		enableToggle.TextColor3 = Color3.fromRGB(200,200,200)
+		Instance.new("UICorner", enableToggle).CornerRadius = UDim.new(0,4)
+
+		local modKey = mod.filename or mod.name or tostring(math.random(1,999999))
+		modsState[modKey] = modsState[modKey] or {installed = false, enabled = false, cleanup = nil, module = nil}
+
+		local function refreshState()
+			local st = modsState[modKey]
+			if st.installed then statusLbl.Text = "Installed" else statusLbl.Text = "Not installed" end
+			if st.enabled then enableToggle.Text = "Disable"; enableToggle.BackgroundColor3 = Color3.fromRGB(0,140,80) else enableToggle.Text = "Enable"; enableToggle.BackgroundColor3 = Color3.fromRGB(40,40,40) end
+		end
+
+		local function createOrUpdateModule(content)
+			local name = sanitizeName(modKey)
+			local existing = modFolder:FindFirstChild(name)
+			if existing and existing:IsA("ModuleScript") then
+				existing.Source = content
+				return existing
+			else
+				local ms = Instance.new("ModuleScript")
+				ms.Name = name
+				ms.Source = content
+				ms.Parent = modFolder
+				return ms
+			end
+		end
+
+		installBtn.MouseButton1Click:Connect(function()
+			local dl = resolveDownloadURL(mod)
+			if not dl then windowFunctions:Notify("Mods", "No download URL for this mod.", 3, "warn"); return end
+			local ok, content = pcall(function() return HttpService:GetAsync(dl, true) end)
+			if not ok or not content then windowFunctions:Notify("Mods", "Failed to download mod.", 3, "error"); return end
+			local ms = createOrUpdateModule(content)
+			modsState[modKey].installed = true
+			modsState[modKey].module = ms
+			refreshState()
+			windowFunctions:Notify("Mods", "Installed "..(mod.name or ms.Name), 3, "success")
+		end)
+
+		updateBtn.MouseButton1Click:Connect(function()
+			local dl = resolveDownloadURL(mod)
+			if not dl then windowFunctions:Notify("Mods", "No download URL for this mod.", 3, "warn"); return end
+			local ok, content = pcall(function() return HttpService:GetAsync(dl, true) end)
+			if not ok or not content then windowFunctions:Notify("Mods", "Failed to download update.", 3, "error"); return end
+			local ms = createOrUpdateModule(content)
+			modsState[modKey].installed = true
+			modsState[modKey].module = ms
+			-- if enabled, re-init
+			if modsState[modKey].enabled then
+				-- call cleanup then init again
+				pcall(function() if modsState[modKey].cleanup then modsState[modKey].cleanup(); modsState[modKey].cleanup = nil end end)
+				local ok2, modtbl = pcall(function() return require(ms) end)
+				if ok2 and type(modtbl) == "table" and modtbl.init then
+					local ok3, ret = pcall(function() return modtbl.init(windowFunctions) end)
+					if ok3 and type(ret) == "function" then modsState[modKey].cleanup = ret end
+				end
+				end
+			refreshState()
+			windowFunctions:Notify("Mods", "Updated "..(mod.name or ms.Name), 3, "info")
+		end)
+
+		deleteBtn.MouseButton1Click:Connect(function()
+			local name = sanitizeName(modKey)
+			local existing = modFolder:FindFirstChild(name)
+			if existing then pcall(function() existing:Destroy() end); modsState[modKey].installed = false; modsState[modKey].module = nil; modsState[modKey].enabled = false; modsState[modKey].cleanup = nil; refreshState(); windowFunctions:Notify("Mods", "Deleted "..(mod.name or name), 3, "warn") end
+		end)
+
+		enableToggle.MouseButton1Click:Connect(function()
+			local st = modsState[modKey]
+			if not st.installed then windowFunctions:Notify("Mods", "Install mod first.", 2, "warn"); return end
+			if not st.enabled then
+				-- enable: require and call init
+				local ok, modtbl = pcall(function() return require(st.module) end)
+				if not ok then windowFunctions:Notify("Mods", "Failed to require mod.", 2, "error"); return end
+				if type(modtbl) == "table" and modtbl.init then
+					local ok2, ret = pcall(function() return modtbl.init(windowFunctions) end)
+					if ok2 and type(ret) == "function" then st.cleanup = ret end
+				end
+				st.enabled = true
+				windowFunctions:Notify("Mods", "Enabled "..(mod.name or st.module.Name), 2, "success")
+			else
+				-- disable: call cleanup if present
+				if st.cleanup then pcall(st.cleanup) end
+				st.enabled = false
+				windowFunctions:Notify("Mods", "Disabled "..(mod.name or st.module.Name), 2, "info")
+			end
+			refreshState()
+		end)
+
+		-- detect installed module at start
+		local existing = modFolder:FindFirstChild(sanitizeName(modKey))
+		if existing and existing:IsA("ModuleScript") then
+			modsState[modKey].installed = true
+			modsState[modKey].module = existing
+			refreshState()
+		end
+
+		return card
+	end
+
+	-- fetch from GitHub and populate
+	spawn(function()
+		local mods = {}
+		local ok, res = pcall(function()
+			local api = "https://api.github.com/repos/Sealient/LuminxUI/contents/Mods"
+			local raw = HttpService:GetAsync(api, true)
+			return HttpService:JSONDecode(raw)
+		end)
+		if not ok then
+			-- GitHub API failed (HttpService may be disabled)
+			pcall(function() windowFunctions:Notify("Mods", "Could not fetch mods from GitHub (HTTP may be disabled). Showing local fallback.", 5, "warn") end)
+		else
+			if type(res) == "table" then
+				for _, entry in ipairs(res) do
+					if entry.type == "file" then
+						local dl = entry.download_url or ("https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/" .. (entry.name or ""))
+						table.insert(mods, {filename = entry.name, download_url = dl})
+					end
+				end
+			end
+		end
+		-- always include local test mod as fallback/preview
+		table.insert(mods, 1, {name = "Sample Test Mod", description = "A demo mod bundled with LuminxUI for testing the Mods tab and cards.", version = "0.1", filename = "test_mod.lua", download_url = nil})
+		for _, m in ipairs(mods) do pcall(function() createModCard(m) end) end
 	end)
 
 	SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
