@@ -1263,6 +1263,28 @@ if not nameLbl.Text or nameLbl.Text == "" then nameLbl.Text = game.Players.Local
 		MainFrame.BackgroundColor3 = Color3.fromRGB(10,10,10)
 	end)
 
+	-- Unload / uninstall the UI and optional mods folder
+	local unloadConfirm = false
+	SettingsTab:CreateButton("Unload UI", function()
+		if not unloadConfirm then
+			unloadConfirm = true
+			windowFunctions:Notify("LuminxUI", "Click 'Unload UI' again within 5s to confirm.", 4, "warn")
+			task.delay(5, function() unloadConfirm = false end)
+			return
+		end
+		-- proceed to cleanup
+		pcall(function()
+			if ScreenGui and ScreenGui.Parent then ScreenGui:Destroy() end
+		end)
+		-- remove installed mods folder if present
+		pcall(function()
+			local rs = game:GetService("ReplicatedStorage")
+			local mf = rs:FindFirstChild("LuminxMods")
+			if mf then mf:Destroy() end
+		end)
+		windowFunctions:Notify("LuminxUI", "Library unloaded. Re-run to reinitialize.", 4, "info")
+	end)
+
 	-- Enhanced Mods tab: cards with Install / Update / Delete and enable toggle
 	local ModsTab = windowFunctions:CreateTab("Mods")
 	ModsTab:CreateSection("Available Mods")
