@@ -1283,10 +1283,11 @@ function lib:CreateWindow(titleText)
 	end
 
 
-	-- Add this near the top of your script for the toggle logic
+	-- Global Config (Put these at the very top of your script)
 	local uiKeybind = Enum.KeyCode.RightControl
 	local uiVisible = true
 
+	-- Keybind Toggle Listener
 	UserInputService.InputBegan:Connect(function(input, gpe)
 		if not gpe and input.KeyCode == uiKeybind then
 			uiVisible = not uiVisible
@@ -1299,102 +1300,104 @@ function lib:CreateWindow(titleText)
 	-- ==========================================
 	local SettingsTab = windowFunctions:CreateTab("Settings")
 
-	-- 1. Interface Management
-	SettingsTab:CreateSection("Interface Control")
-
+	SettingsTab:CreateSection("Interface")
 	SettingsTab:CreateButton("Toggle Key: " .. uiKeybind.Name, function()
-		-- This is a simple display, but you can expand this into a 
-		-- proper keybind listener if you want users to change it.
-		windowFunctions:Notify("Keybind", "Current key is set to " .. uiKeybind.Name, 3)
+		windowFunctions:Notify("Keybind", "Current toggle key is " .. uiKeybind.Name, 3)
 	end)
 
-	SettingsTab:CreateToggle("Show/Hide UI", true, function(state)
-		uiVisible = state
-		MainFrame.Visible = uiVisible
-	end, "switch")
-
-	-- 2. Theme Customization
-	SettingsTab:CreateSection("Theme & Visuals")
-
+	SettingsTab:CreateSection("Theme")
 	SettingsTab:CreateColorPicker("Accent Color", accentColor, function(col)
 		accentColor = col
 		Indicator.BackgroundColor3 = accentColor
 		SearchStroke.Color = accentColor
-		-- Update any other accent-dependent elements here
 		if accentDot then accentDot.BackgroundColor3 = accentColor end
-
-		-- Notify the user of the change
-		windowFunctions:Notify("Theme", "Accent color updated successfully.", 2)
 	end)
 
-	-- 3. System Actions
-	SettingsTab:CreateSection("System")
-
-	SettingsTab:CreateButton("Clear All Notifications", function()
-		for i = #activeNotifs, 1, -1 do
-			if activeNotifs[i] and activeNotifs[i].Frame then
-				pcall(function() activeNotifs[i].Frame:Destroy() end)
-			end
-			table.remove(activeNotifs, i)
-		end
-		windowFunctions:Notify("System", "Notifications cleared.", 2)
-	end)
-
-	local unloadConfirm = false
-	SettingsTab:CreateButton("Unload Library", function()
-		if not unloadConfirm then
-			unloadConfirm = true
-			windowFunctions:Notify("Security", "Click again within 3 seconds to confirm Unload.", 3, "warn")
-			task.delay(3, function() unloadConfirm = false end)
+	SettingsTab:CreateSection("Danger Zone")
+	local confirmUnload = false
+	SettingsTab:CreateButton("Unload UI", function()
+		if not confirmUnload then
+			confirmUnload = true
+			windowFunctions:Notify("Warning", "Click again to confirm Unload", 3, "warn")
+			task.delay(3, function() confirmUnload = false end)
 			return
 		end
-
-		-- Final Cleanup
-		pcall(function()
-			ScreenGui:Destroy()
-			-- Clean up ReplicatedStorage if necessary
-			local mf = game:GetService("ReplicatedStorage"):FindFirstChild("LuminxMods")
-			if mf then mf:Destroy() end
-		end)
+		ScreenGui:Destroy()
 	end)
 
 	-- ==========================================
-	-- MODS TAB LOGIC (String-Based Loader)
+	-- OVERHAULED MODS SYSTEM
 	-- ==========================================
 	local ModsTab = windowFunctions:CreateTab("Mods")
-	ModsTab:CreateSection("Available Mods")
+	ModsTab:CreateSection("Mod Management")
 
 	local modFolder = ReplicatedStorage:FindFirstChild("LuminxMods") or Instance.new("Folder", ReplicatedStorage)
 	modFolder.Name = "LuminxMods"
 	local modsState = {}
 
+	-- Helper to turn downloaded string into a table
 	local function runModCode(codeStr)
-		local func, err = loadstring(codeStr) -- Converts string to executable function
+		local func, err = loadstring(codeStr)
 		if func then
 			local ok, modTbl = pcall(func)
 			if ok and type(modTbl) == "table" then return modTbl end
 		end
+		warn("Mod Load Error: " .. tostring(err))
 		return nil
 	end
 
-	-- Function to create mod cards [Simplified Version of your Card Logic]
 	local function createModCard(mod)
-		-- This uses your existing card UI logic but updates the "Enable" button:
-		-- (Omitted UI positioning for brevity, keep your original UI layouts here)
+		-- We use the ScrollingFrame from the ModsTab
+		local Page = ModsTab.Page 
+
+		local card = Instance.new("Frame", Page)
+		card.Size = UDim2.new(1, -20, 0, 85)
+		card.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+		Instance.new("UICorner", card).CornerRadius = UDim.new(0, 6)
+
+		local nameLbl = Instance.new("TextLabel", card)
+		nameLbl.Text = mod.name or mod.filename
+		nameLbl.Size = UDim2.new(1, -100, 0, 25)
+		nameLbl.Position = UDim2.new(0, 10, 0, 5)
+		nameLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+		nameLbl.BackgroundTransparency = 1
+		nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+		-- Buttons (simplified for logic)
+		local installBtn = Instance.new("TextButton", card)
+		installBtn.Text = "Install"
+		installBtn.Size = UDim2.new(0, 80, 0, 25)
+		installBtn.Position = UDim2.new(0, 10, 1, -35)
+
+		local enableBtn = Instance.new("TextButton", card)
+		enableBtn.Text = "Enable"
+		enableBtn.Size = UDim2.new(0, 80, 0, 25)
+		enableBtn.Position = UDim2.new(0, 100, 1, -35)
 
 		local modKey = mod.filename or mod.name
 		modsState[modKey] = {installed = false, enabled = false, cleanup = nil, code = ""}
 
-		-- Check if already in ReplicatedStorage
+		-- Check existing files
 		local existing = modFolder:FindFirstChild(modKey:gsub(".lua",""))
 		if existing then
 			modsState[modKey].installed = true
 			modsState[modKey].code = existing.Value
 		end
 
-		-- Logic for the Enable Toggle
-		-- In your button.MouseButton1Click listener:
-		local function onToggle()
+		installBtn.MouseButton1Click:Connect(function()
+			local dl = mod.download_url or ("https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/" .. mod.filename)
+			local ok, content = pcall(function() return HttpService:GetAsync(dl, true) end)
+			if ok then
+				local val = modFolder:FindFirstChild(modKey) or Instance.new("StringValue", modFolder)
+				val.Name = modKey:gsub(".lua","")
+				val.Value = content
+				modsState[modKey].installed = true
+				modsState[modKey].code = content
+				windowFunctions:Notify("Mods", "Installed " .. modKey, 3, "success")
+			end
+		end)
+
+		enableBtn.MouseButton1Click:Connect(function()
 			local st = modsState[modKey]
 			if not st.installed then return end
 
@@ -1405,29 +1408,28 @@ function lib:CreateWindow(titleText)
 					if ok then
 						st.cleanup = cleanup
 						st.enabled = true
+						enableBtn.Text = "Disable"
+						enableBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 100)
 					end
 				end
 			else
 				if st.cleanup then pcall(st.cleanup) end
 				st.enabled = false
+				enableBtn.Text = "Enable"
+				enableBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 			end
-		end
+		end)
 	end
 
-	-- Fetch from your GitHub Repo
+	-- Startup fetch from GitHub
 	task.spawn(function()
 		local ok, res = pcall(function()
 			return HttpService:JSONDecode(HttpService:GetAsync("https://api.github.com/repos/Sealient/LuminxUI/contents/Mods"))
 		end)
-
-		if ok and type(res) == "table" then
-			for _, entry in ipairs(res) do
-				if entry.name:find(".lua") then
-					createModCard({
-						name = entry.name,
-						filename = entry.name,
-						download_url = entry.download_url
-					})
+		if ok then
+			for _, item in ipairs(res) do
+				if item.name:find(".lua") then
+					createModCard({name = item.name, filename = item.name, download_url = item.download_url})
 				end
 			end
 		end
