@@ -1,23 +1,24 @@
--- Sample Mod for LuminxUI
+-- LuminxUI Sample Mod Template
 local Mod = {}
 
+-- The 'init' function is called when the user clicks "Enable"
+-- We pass the UI Library (windowFunctions) so the mod can use your Notify system.
 function Mod.init(UILib)
-    -- This runs when 'Enable' is clicked
-    UILib:Notify("Mod Loaded", "Sample Test Mod is now active!", 3, "success")
+    UILib:Notify("Mod Status", "Test Mod has been successfully enabled!", 4, "success")
     
-    -- Example: Mods can create their own logic here
-    local running = true
+    -- Example Logic: A simple heartbeat message
+    local isRunning = true
     task.spawn(function()
-        while running do
-            print("Mod is heartbeat pulsing...")
-            task.wait(5)
+        while isRunning do
+            print("[Luminx Mod] Heartbeat Active...")
+            task.wait(10)
         end
     end)
 
-    -- Return a cleanup function (This runs when 'Disable' is clicked)
+    -- IMPORTANT: Return a cleanup function for when the user clicks "Disable"
     return function()
-        running = false
-        UILib:Notify("Mod Disabled", "Cleanup successful.", 3, "info")
+        isRunning = false
+        UILib:Notify("Mod Status", "Test Mod disabled and cleaned up.", 3, "info")
     end
 end
 
