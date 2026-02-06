@@ -1,19 +1,24 @@
--- Sample test mod for LuminxUI
--- Exposes metadata used by the UI and a simple init function
-local MOD = {
-	name = "Sample Tet Mod",
-	description = "A emo mod bundled with LuminxUI for testing the Mods tab and cards.",
-	version = "0.1",
-	author = "Sealient",
-}
+-- Sample Mod for LuminxUI
+local Mod = {}
 
-function MOD.init(window)
-	-- Example: call the library notification API if available
-	pcall(function()
-		if window and window.Notify then
-			window:Notify("Sample Test Mod", "Initialized successfully.", 3, "success")
-		end
-	end)
+function Mod.init(UILib)
+    -- This runs when 'Enable' is clicked
+    UILib:Notify("Mod Loaded", "Sample Test Mod is now active!", 3, "success")
+    
+    -- Example: Mods can create their own logic here
+    local running = true
+    task.spawn(function()
+        while running do
+            print("Mod is heartbeat pulsing...")
+            task.wait(5)
+        end
+    end)
+
+    -- Return a cleanup function (This runs when 'Disable' is clicked)
+    return function()
+        running = false
+        UILib:Notify("Mod Disabled", "Cleanup successful.", 3, "info")
+    end
 end
 
-return MOD
+return Mod
