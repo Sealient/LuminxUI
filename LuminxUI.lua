@@ -2112,13 +2112,16 @@ function lib:CreateWindow(titleText)
 		CreateDefaultSettings(lib, Window)
 	end)
 	
-	local RunningMods = {} 
-
 	function lib:InitializeMods(WindowObj)
+		-- Configuration
 		local ModSource = "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/"
 		local ModList = {"testmod.lua"} 
 
-		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
+		-- Local reference to the accent to prevent "nil" errors
+		local AccentColor = self.CurrentAccent or Color3.fromRGB(0, 170, 255)
+
+		-- Create the Tab
+		local ModsTab = WindowObj:CreateTab("Mods", "rbxassetid://10734949856")
 
 		local function SafeFetch(url)
 			local success, result = pcall(function()
@@ -2141,91 +2144,83 @@ function lib:CreateWindow(titleText)
 						local dataSuccess, modData = pcall(modDataFunc)
 
 						if dataSuccess and type(modData) == "table" then
-							-- 1. Create the Card
+							-- 1. Create the Card via your library
 							local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
 								{Title = "Version", Description = modData.Version or "1.0.0"},
 								{Title = "Status", Description = "Ready"}
 							})
 
-							-- 2. Create the Install Button
-							-- Note: We parent it directly to the 'Card' frame
+							-- 2. Create and Force the Action Button
 							local ActionBtn = Instance.new("TextButton")
 							ActionBtn.Name = "ModInstallButton"
-							ActionBtn.Parent = Card 
-
-							-- Styling to match your UI
-							ActionBtn.Size = UDim2.new(0, 70, 0, 22)
-							-- Position it specifically in the top right area of the card
-							ActionBtn.Position = UDim2.new(1, -10, 0, 10) 
+							ActionBtn.Size = UDim2.new(0, 80, 0, 24)
+							-- Positioned to be clearly visible on the right side of the card
+							ActionBtn.Position = UDim2.new(1, -10, 0, 8)
 							ActionBtn.AnchorPoint = Vector2.new(1, 0)
-							ActionBtn.BackgroundColor3 = lib.CurrentAccent
+							ActionBtn.BackgroundColor3 = AccentColor -- Using the local safe variable
 							ActionBtn.BorderSizePixel = 0
 							ActionBtn.Text = "Install"
 							ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 							ActionBtn.Font = Enum.Font.GothamBold
 							ActionBtn.TextSize = 11
-							ActionBtn.ZIndex = 50 -- Force it above all other elements in the card
+							ActionBtn.ZIndex = 50 
+							ActionBtn.Parent = Card
 
 							local Corner = Instance.new("UICorner")
 							Corner.CornerRadius = UDim.new(0, 4)
 							Corner.Parent = ActionBtn
 
-							-- 3. UI Update Logic
+							-- 3. UI Update Helper
 							local function UpdateUI(status, btnText, color)
 								ActionBtn.Text = btnText
-								ActionBtn.BackgroundColor3 = color or lib.CurrentAccent
+								ActionBtn.BackgroundColor3 = color or AccentColor
 								Methods:Update({
 									{Title = "Version", Description = modData.Version},
 									{Title = "Status", Description = status}
 								})
 							end
 
-							-- 4. Initial State Persistence
+							-- 4. Set Initial State
 							if RunningMods[modData.Title] then
 								if RunningMods[modData.Title].Version ~= modData.Version then
-									UpdateUI("Update Found", "Update", Color3.fromRGB(0, 180, 100))
+									UpdateUI("Update", "Update", Color3.fromRGB(0, 180, 100))
 								else
 									UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
 								end
 							end
 
-							-- 5. Click Logic
+							-- 5. Click Handling with nil-checks
 							ActionBtn.MouseButton1Click:Connect(function()
 								local Active = RunningMods[modData.Title]
 
-								-- Handle Updates/Cleanup first
+								-- Handle Update cleanup
 								if Active and Active.Version ~= modData.Version then
 									if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
 									Active = nil
+									RunningMods[modData.Title] = nil
 								end
 
-								if not Active then
-									-- [[ THE FIX IS HERE ]]
-									-- 1. Load the string into a function
-									local modCode, parseError = loadstring(modData.Script)
-
-									-- 2. Check if the code is valid
-									if not modCode then
-										warn("[Luminx Debug]: Syntax Error in Mod Script: " .. tostring(parseError))
-										UpdateUI("Error", "Check Console", Color3.fromRGB(255, 100, 100))
-										return
-									end
-
-									-- 3. Execute the function and capture the 'Mod' table it returns
-									local success, instance = pcall(modCode)
-
-									if success then
-										RunningMods[modData.Title] = {Instance = instance, Version = modData.Version}
-										UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
+								if not RunningMods[modData.Title] then
+									-- Try to Load
+									local modCode, err = loadstring(modData.Script)
+									if modCode then
+										local s, instance = pcall(modCode)
+										if s then
+											RunningMods[modData.Title] = {Instance = instance, Version = modData.Version}
+											UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
+										else
+											warn("Mod Runtime Error: " .. tostring(instance))
+										end
 									else
-										warn("[Luminx Debug]: Runtime Error inside Mod: " .. tostring(instance))
-										UpdateUI("Runtime Err", "Fix Script", Color3.fromRGB(255, 100, 100))
+										warn("Mod Syntax Error: " .. tostring(err))
 									end
 								else
-									-- Disable Mod
-									if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+									-- Disable
+									if Active and Active.Instance and Active.Instance.Stop then 
+										pcall(Active.Instance.Stop) 
+									end
 									RunningMods[modData.Title] = nil
-									UpdateUI("Ready", "Install", lib.CurrentAccent)
+									UpdateUI("Ready", "Install", AccentColor)
 								end
 							end)
 						end
@@ -2243,5 +2238,4 @@ function lib:CreateWindow(titleText)
 end
 
 return lib
-
 
