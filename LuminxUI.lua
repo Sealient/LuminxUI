@@ -2113,7 +2113,7 @@ function lib:CreateWindow(titleText)
 		local ModSource = "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/"
 		local ModList = {"testmod.lua"} 
 
-		local ModsTab = WindowObj:CreateTab("Mods", "rbxassetid://10734949856")
+		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
 
 		-- 1. Create a Refresh Button in the Tab Header area
 		-- Note: Adjust the parent/position based on your specific Tab UI structure
