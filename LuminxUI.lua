@@ -2114,23 +2114,12 @@ function lib:CreateWindow(titleText)
 		local ModList = {"testmod.lua"} 
 
 		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
+		local IsLoading = false -- Prevents duplicate loops
 
-		-- 1. WAIT FOR CONTAINER (The Anti-Nil Fix)
+		-- 1. Precise Container Finder
 		local function GetTargetContainer()
-			local Found = nil
-			-- Check common naming conventions first
-			Found = ModsTab.Page or ModsTab.Container or ModsTab.Frame
-
-			-- If not found, scan the table for any ScrollingFrame
-			if not Found then
-				for k, v in pairs(ModsTab) do
-					if typeof(v) == "Instance" and (v:IsA("ScrollingFrame") or v:IsA("Frame")) then
-						Found = v
-						break
-					end
-				end
-			end
-			return Found
+			-- In Luminx, the Tab object usually contains a ScrollingFrame named 'Page'
+			return ModsTab.Page or ModsTab.Container or ModsTab:FindFirstChildWhichIsA("ScrollingFrame", true)
 		end
 
 		local function GetCloudData(url)
@@ -2142,20 +2131,23 @@ function lib:CreateWindow(titleText)
 
 		-- 2. THE LOADING LOGIC
 		local function LoadModCards()
+			if IsLoading then return end
+			IsLoading = true
+
 			local TargetContainer = GetTargetContainer()
 
-			-- If it's STILL nil, wait a moment and try again
+			-- If UI isn't ready, wait once and exit this specific execution
 			if not TargetContainer then
-				task.delay(0.1, LoadModCards)
+				task.delay(0.5, function() 
+					IsLoading = false
+					LoadModCards() 
+				end)
 				return
 			end
 
-			-- Clean up existing cards
+			-- CLEAR: Remove only old mod cards
 			for _, child in pairs(TargetContainer:GetChildren()) do
-				local isLayout = child:IsA("UIListLayout") or child:IsA("UIPadding") or child:IsA("UIStroke")
-				local isPersistent = (child.Name == "PersistentRefreshButton")
-
-				if not isLayout and not isPersistent then
+				if child:IsA("Frame") and child.Name ~= "PersistentRefreshButton" then
 					child:Destroy()
 				end
 			end
@@ -2163,7 +2155,11 @@ function lib:CreateWindow(titleText)
 			task.spawn(function()
 				for _, fileName in pairs(ModList) do
 					local success, rawLua = GetCloudData(ModSource .. fileName)
-					if not success then continue end
+
+					if not success then 
+						warn("Luminx: Failed to fetch " .. fileName)
+						continue 
+					end
 
 					local dataFunc = loadstring(rawLua)
 					if not dataFunc then continue end
@@ -2174,8 +2170,9 @@ function lib:CreateWindow(titleText)
 					-- Create Card UI
 					local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
 						{Title = "Version", Description = modData.Version},
-						{Title = "Status", Description = "Checking..."}
+						{Title = "Status", Description = "Ready"} -- Set to Ready immediately after load
 					})
+					Card.Name = "ModCard_" .. (modData.Title or "Unknown")
 
 					-- MINI-BUTTON CREATOR
 					local function CreateSmallBtn(text, pos, color)
@@ -2206,7 +2203,7 @@ function lib:CreateWindow(titleText)
 						if not Active then
 							InstallBtn.Text = "Install"; InstallBtn.BackgroundColor3 = Accent
 							ToggleBtn.Text = "Enable"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-							Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Not Installed"}})
+							Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Ready"}})
 						else
 							InstallBtn.Text = "Uninstall"; InstallBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 							if Active.Enabled then
@@ -2257,6 +2254,7 @@ function lib:CreateWindow(titleText)
 
 					SyncUI()
 				end
+				IsLoading = false -- Finished loading
 			end)
 		end
 
