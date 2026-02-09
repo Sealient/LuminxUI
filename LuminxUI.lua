@@ -2121,7 +2121,7 @@ function lib:CreateWindow(titleText)
 		local AccentColor = self.CurrentAccent or Color3.fromRGB(0, 170, 255)
 
 		-- Create the Tab
-		local ModsTab = WindowObj:CreateTab("Mods", "rbxassetid://10734949856")
+		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
 
 		local function SafeFetch(url)
 			local success, result = pcall(function()
