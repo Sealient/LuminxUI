@@ -1,6 +1,9 @@
 return {
-    Title = "Aimbot Pro",
-    Version = "1.0.2",
-    Description = "Advanced targeting system for competitive play.",
-    Script = "print('Aimbot Loaded!')" -- The actual code to run
+    Title = "Flight Mod",
+    Version = "2.4.0",
+    Description = "Toggleable fly script for exploring the map.",
+    Script = [[
+        print("Flight Mod Activated!")
+        -- Put your actual fly code here
+    ]]
 }
