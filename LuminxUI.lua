@@ -2115,18 +2115,8 @@ function lib:CreateWindow(titleText)
 
 		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
 
-		-- 1. Create a Refresh Button in the Tab Header area
-		-- Note: Adjust the parent/position based on your specific Tab UI structure
-		local RefreshBtn = Instance.new("TextButton")
-		RefreshBtn.Name = "GlobalRefresh"
-		RefreshBtn.Size = UDim2.new(0, 30, 0, 30)
-		RefreshBtn.Position = UDim2.new(1, -35, 0, 5)
-		RefreshBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-		RefreshBtn.Text = "↻" -- Refresh Symbol
-		RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-		RefreshBtn.TextSize = 18
-		RefreshBtn.Parent = ModsTab.Page -- Parents it to the tab's main container
-		Instance.new("UICorner", RefreshBtn).CornerRadius = UDim.new(0, 6)
+		-- Target the scrolling container inside the tab
+		local TargetContainer = ModsTab.Container or ModsTab.Page or ModsTab.Frame
 
 		local function GetCloudData(url)
 			local success, result = pcall(function()
@@ -2135,11 +2125,25 @@ function lib:CreateWindow(titleText)
 			return success, result
 		end
 
-		-- 2. Wrap the card creation in a function so we can call it anytime
+		-- 1. Create the Refresh Button using your native library function
+		local RefreshBtn = ModsTab:CreateButton("↻ Refresh Mod List", function()
+			-- We trigger the refresh logic below
+			if _G.RefreshModsAction then
+				_G.RefreshModsAction()
+			end
+		end)
+
+		-- Give it a unique name so we don't delete it during refresh
+		RefreshBtn.Name = "PersistentRefreshButton"
+
+		-- 2. Define the Loading Logic
 		local function LoadModCards()
-			-- Clear existing UI cards first (but keep the Refresh button)
-			for _, child in pairs(ModsTab.Page:GetChildren()) do
-				if child:IsA("Frame") and child.Name ~= "GlobalRefresh" then
+			-- CLEAR: Remove old mod cards but keep the Refresh button and UI layouts
+			for _, child in pairs(TargetContainer:GetChildren()) do
+				local isLayout = child:IsA("UIListLayout") or child:IsA("UIPadding")
+				local isPersistent = (child.Name == "PersistentRefreshButton")
+
+				if not isLayout and not isPersistent then
 					child:Destroy()
 				end
 			end
@@ -2155,14 +2159,14 @@ function lib:CreateWindow(titleText)
 					local _, modData = pcall(dataFunc)
 					if type(modData) ~= "table" then continue end
 
-					-- Create Card
+					-- Create the Mod Card (Description List)
 					local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
 						{Title = "Version", Description = modData.Version},
 						{Title = "Status", Description = "Checking..."}
 					})
 
-					-- Helper for Buttons
-					local function CreateModBtn(text, pos, color)
+					-- UI BUTTON FACTORY (For the 3 small buttons inside the card)
+					local function CreateSmallBtn(text, pos, color)
 						local b = Instance.new("TextButton")
 						b.Size = UDim2.new(0, 65, 0, 22)
 						b.Position = pos
@@ -2178,12 +2182,13 @@ function lib:CreateWindow(titleText)
 						return b
 					end
 
-					local UpdateBtn = CreateModBtn("Update", UDim2.new(1, -155, 0, 8), Color3.fromRGB(0, 180, 100))
-					local ToggleBtn = CreateModBtn("Enable", UDim2.new(1, -85, 0, 8), Color3.fromRGB(100, 100, 100))
-					local InstallBtn = CreateModBtn("Install", UDim2.new(1, -15, 0, 8), Accent)
+					local UpdateBtn = CreateSmallBtn("Update", UDim2.new(1, -155, 0, 8), Color3.fromRGB(0, 180, 100))
+					local ToggleBtn = CreateSmallBtn("Enable", UDim2.new(1, -85, 0, 8), Color3.fromRGB(100, 100, 100))
+					local InstallBtn = CreateSmallBtn("Install", UDim2.new(1, -15, 0, 8), Accent)
 
 					UpdateBtn.Visible = false
 
+					-- SYNC UI STATE
 					local function SyncUI()
 						local Active = RunningMods[modData.Title]
 						if not Active then
@@ -2203,7 +2208,7 @@ function lib:CreateWindow(titleText)
 						end
 					end
 
-					-- Button Click Connections
+					-- CLICK CONNECTIONS
 					InstallBtn.MouseButton1Click:Connect(function()
 						if not RunningMods[modData.Title] then
 							RunningMods[modData.Title] = {Version = modData.Version, Enabled = false}
@@ -2243,15 +2248,10 @@ function lib:CreateWindow(titleText)
 			end)
 		end
 
-		-- 3. Connect Refresh Button
-		RefreshBtn.MouseButton1Click:Connect(function()
-			RefreshBtn.Text = "..."
-			LoadModCards()
-			task.wait(0.5)
-			RefreshBtn.Text = "↻"
-		end)
+		-- Assign to global so the button callback can find it
+		_G.RefreshModsAction = LoadModCards
 
-		-- Initial Load
+		-- Initial Run
 		LoadModCards()
 	end
 
