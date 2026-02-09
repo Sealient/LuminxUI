@@ -2108,22 +2108,18 @@ function lib:CreateWindow(titleText)
 		return tab
 	end
 
-	task.spawn(function()
-		CreateDefaultSettings(lib, Window)
-	end)
-	
+	-- [[ 2. THE MODS SYSTEM ]]
 	function lib:InitializeMods(WindowObj)
-		-- Configuration
+		-- CACHE: Grab variables now so they aren't nil inside threads later
+		local Accent = self.CurrentAccent or Color3.fromRGB(0, 170, 255)
 		local ModSource = "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/"
-		local ModList = {"testmod.lua"} 
+		local ModList = {"testmod.lua"} -- Add your .lua files here
 
-		-- Local reference to the accent to prevent "nil" errors
-		local AccentColor = self.CurrentAccent or Color3.fromRGB(0, 170, 255)
+		-- CREATE TAB
+		local ModsTab = WindowObj:CreateTab("Mods", "rbxassetid://10734949856")
 
-		-- Create the Tab
-		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
-
-		local function SafeFetch(url)
+		-- SAFE NETWORK FETCHER
+		local function GetCloudData(url)
 			local success, result = pcall(function()
 				if type(game.HttpGet) == "function" then
 					return game:HttpGet(url)
@@ -2134,101 +2130,115 @@ function lib:CreateWindow(titleText)
 			return success, result
 		end
 
+		-- ASYNC LOAD LOOP
 		task.spawn(function()
 			for _, fileName in pairs(ModList) do
-				local success, result = SafeFetch(ModSource .. fileName)
+				local success, rawLua = GetCloudData(ModSource .. fileName)
 
-				if success then
-					local modDataFunc, parseErr = loadstring(result)
-					if modDataFunc then
-						local dataSuccess, modData = pcall(modDataFunc)
+				if not success then 
+					warn("[Luminx]: Failed to reach GitHub for " .. fileName)
+					continue 
+				end
 
-						if dataSuccess and type(modData) == "table" then
-							-- 1. Create the Card via your library
-							local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
-								{Title = "Version", Description = modData.Version or "1.0.0"},
-								{Title = "Status", Description = "Ready"}
-							})
+				-- Convert raw string to a table
+				local dataFunc, parseErr = loadstring(rawLua)
+				if not dataFunc then 
+					warn("[Luminx]: Syntax error in " .. fileName .. ": " .. tostring(parseErr))
+					continue 
+				end
 
-							-- 2. Create and Force the Action Button
-							local ActionBtn = Instance.new("TextButton")
-							ActionBtn.Name = "ModInstallButton"
-							ActionBtn.Size = UDim2.new(0, 80, 0, 24)
-							-- Positioned to be clearly visible on the right side of the card
-							ActionBtn.Position = UDim2.new(1, -10, 0, 8)
-							ActionBtn.AnchorPoint = Vector2.new(1, 0)
-							ActionBtn.BackgroundColor3 = AccentColor -- Using the local safe variable
-							ActionBtn.BorderSizePixel = 0
-							ActionBtn.Text = "Install"
-							ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-							ActionBtn.Font = Enum.Font.GothamBold
-							ActionBtn.TextSize = 11
-							ActionBtn.ZIndex = 50 
-							ActionBtn.Parent = Card
+				local dataSuccess, modData = pcall(dataFunc)
+				if dataSuccess and type(modData) == "table" then
 
-							local Corner = Instance.new("UICorner")
-							Corner.CornerRadius = UDim.new(0, 4)
-							Corner.Parent = ActionBtn
+					-- [[ CREATE UI CARD ]]
+					local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Unnamed Mod", {
+						{Title = "Version", Description = modData.Version or "1.0.0"},
+						{Title = "Status", Description = "Ready"}
+					})
 
-							-- 3. UI Update Helper
-							local function UpdateUI(status, btnText, color)
-								ActionBtn.Text = btnText
-								ActionBtn.BackgroundColor3 = color or AccentColor
-								Methods:Update({
-									{Title = "Version", Description = modData.Version},
-									{Title = "Status", Description = status}
-								})
-							end
+					-- [[ CREATE ACTION BUTTON ]]
+					local ActionBtn = Instance.new("TextButton")
+					ActionBtn.Name = "ModButton"
+					ActionBtn.Parent = Card
+					ActionBtn.Size = UDim2.new(0, 80, 0, 24)
+					ActionBtn.Position = UDim2.new(1, -10, 0, 8) -- Forced inside top-right
+					ActionBtn.AnchorPoint = Vector2.new(1, 0)
+					ActionBtn.BackgroundColor3 = Accent
+					ActionBtn.BorderSizePixel = 0
+					ActionBtn.Text = "Install"
+					ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+					ActionBtn.Font = Enum.Font.GothamBold
+					ActionBtn.TextSize = 11
+					ActionBtn.ZIndex = 100 -- Force to front
 
-							-- 4. Set Initial State
-							if RunningMods[modData.Title] then
-								if RunningMods[modData.Title].Version ~= modData.Version then
-									UpdateUI("Update", "Update", Color3.fromRGB(0, 180, 100))
-								else
-									UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
-								end
-							end
+					local Corner = Instance.new("UICorner", ActionBtn)
+					Corner.CornerRadius = UDim.new(0, 4)
 
-							-- 5. Click Handling with nil-checks
-							ActionBtn.MouseButton1Click:Connect(function()
-								local Active = RunningMods[modData.Title]
+					-- UI UPDATE HELPER
+					local function RefreshUI(status, btnText, btnColor)
+						ActionBtn.Text = btnText
+						ActionBtn.BackgroundColor3 = btnColor or Accent
+						Methods:Update({
+							{Title = "Version", Description = modData.Version},
+							{Title = "Status", Description = status}
+						})
+					end
 
-								-- Handle Update cleanup
-								if Active and Active.Version ~= modData.Version then
-									if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
-									Active = nil
-									RunningMods[modData.Title] = nil
-								end
-
-								if not RunningMods[modData.Title] then
-									-- Try to Load
-									local modCode, err = loadstring(modData.Script)
-									if modCode then
-										local s, instance = pcall(modCode)
-										if s then
-											RunningMods[modData.Title] = {Instance = instance, Version = modData.Version}
-											UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
-										else
-											warn("Mod Runtime Error: " .. tostring(instance))
-										end
-									else
-										warn("Mod Syntax Error: " .. tostring(err))
-									end
-								else
-									-- Disable
-									if Active and Active.Instance and Active.Instance.Stop then 
-										pcall(Active.Instance.Stop) 
-									end
-									RunningMods[modData.Title] = nil
-									UpdateUI("Ready", "Install", AccentColor)
-								end
-							end)
+					-- SYNC STATE (If mod was already running)
+					if RunningMods[modData.Title] then
+						if RunningMods[modData.Title].Version ~= modData.Version then
+							RefreshUI("Update Available", "Update", Color3.fromRGB(0, 200, 100))
+						else
+							RefreshUI("Active", "Disable", Color3.fromRGB(200, 60, 60))
 						end
 					end
+
+					-- [[ BUTTON INTERACTION ]]
+					ActionBtn.MouseButton1Click:Connect(function()
+						local Active = RunningMods[modData.Title]
+
+						-- Case A: Needs Update
+						if Active and Active.Version ~= modData.Version then
+							if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+							Active = nil
+							RunningMods[modData.Title] = nil
+						end
+
+						-- Case B: Toggle Enable
+						if not RunningMods[modData.Title] then
+							local modCode, err = loadstring(modData.Script)
+							if modCode then
+								local s, instance = pcall(modCode)
+								if s then
+									RunningMods[modData.Title] = {
+										Instance = instance, 
+										Version = modData.Version
+									}
+									RefreshUI("Active", "Disable", Color3.fromRGB(200, 60, 60))
+								else
+									warn("[Luminx]: Runtime error in " .. modData.Title .. ": " .. tostring(instance))
+								end
+							else
+								warn("[Luminx]: Script parse error in " .. modData.Title .. ": " .. tostring(err))
+							end
+
+							-- Case C: Toggle Disable
+						else
+							if Active and Active.Instance and Active.Instance.Stop then
+								pcall(Active.Instance.Stop)
+							end
+							RunningMods[modData.Title] = nil
+							RefreshUI("Ready", "Install", Accent)
+						end
+					end)
 				end
 			end
 		end)
 	end
+
+	task.spawn(function()
+		CreateDefaultSettings(lib, Window)
+	end)
 
 	task.defer(function()
 		self:InitializeMods(Window)
