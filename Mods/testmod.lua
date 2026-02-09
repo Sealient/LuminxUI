@@ -1,15 +1,25 @@
 return {
-    Title = "Test Mod",
-    Version = "1.1.0", -- Bump this to test the update button!
-    Description = "Now with Disable and Update support.",
+    Title = "Flight Mod",
+    Version = "1.2.0",
+    Description = "Fly around the map easily.",
     Script = [[
-        local mod = {}
-        print("Mod Started")
+        local Mod = {}
+        local active = true
         
-        mod.Stop = function()
-            print("Mod Stopped and Cleaned Up")
+        -- Your main mod logic
+        task.spawn(function()
+            while active do
+                task.wait(1)
+                print("Flying...")
+            end
+        end)
+
+        -- This function is called when the user clicks 'Disable'
+        Mod.Stop = function()
+            active = false
+            print("Flight Stopped")
         end
-        
-        return mod
+
+        return Mod
     ]]
 }
