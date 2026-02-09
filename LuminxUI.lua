@@ -2113,21 +2113,25 @@ function lib:CreateWindow(titleText)
 		local ModSource = "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/"
 		local ModList = {"testmod.lua"} 
 
-		-- 1. Create the Tab
 		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
 
-		-- 2. DYNAMIC CONTAINER FINDER
-		-- We scan the ModsTab object to find where the actual UI elements live
-		local TargetContainer = nil
-		for k, v in pairs(ModsTab) do
-			if typeof(v) == "Instance" and (v:IsA("ScrollingFrame") or v:IsA("Frame")) then
-				TargetContainer = v
-				break
-			end
-		end
+		-- 1. WAIT FOR CONTAINER (The Anti-Nil Fix)
+		local function GetTargetContainer()
+			local Found = nil
+			-- Check common naming conventions first
+			Found = ModsTab.Page or ModsTab.Container or ModsTab.Frame
 
-		-- Fallback if the loop fails
-		TargetContainer = TargetContainer or ModsTab.Page or ModsTab.Container
+			-- If not found, scan the table for any ScrollingFrame
+			if not Found then
+				for k, v in pairs(ModsTab) do
+					if typeof(v) == "Instance" and (v:IsA("ScrollingFrame") or v:IsA("Frame")) then
+						Found = v
+						break
+					end
+				end
+			end
+			return Found
+		end
 
 		local function GetCloudData(url)
 			local success, result = pcall(function()
@@ -2136,11 +2140,17 @@ function lib:CreateWindow(titleText)
 			return success, result
 		end
 
-		-- 3. THE REFRESH LOGIC
+		-- 2. THE LOADING LOGIC
 		local function LoadModCards()
-			if not TargetContainer then return end
+			local TargetContainer = GetTargetContainer()
 
-			-- Clean up existing cards (ignore the Refresh button and Layouts)
+			-- If it's STILL nil, wait a moment and try again
+			if not TargetContainer then
+				task.delay(0.1, LoadModCards)
+				return
+			end
+
+			-- Clean up existing cards
 			for _, child in pairs(TargetContainer:GetChildren()) do
 				local isLayout = child:IsA("UIListLayout") or child:IsA("UIPadding") or child:IsA("UIStroke")
 				local isPersistent = (child.Name == "PersistentRefreshButton")
@@ -2150,7 +2160,6 @@ function lib:CreateWindow(titleText)
 				end
 			end
 
-			-- Fetch and Generate Cards
 			task.spawn(function()
 				for _, fileName in pairs(ModList) do
 					local success, rawLua = GetCloudData(ModSource .. fileName)
@@ -2195,34 +2204,23 @@ function lib:CreateWindow(titleText)
 					local function SyncUI()
 						local Active = RunningMods[modData.Title]
 						if not Active then
-							-- State: Not Installed
-							InstallBtn.Text = "Install"
-							InstallBtn.BackgroundColor3 = Accent
-							ToggleBtn.Text = "Enable"
-							ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+							InstallBtn.Text = "Install"; InstallBtn.BackgroundColor3 = Accent
+							ToggleBtn.Text = "Enable"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 							Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Not Installed"}})
 						else
-							-- State: Installed
-							InstallBtn.Text = "Uninstall"
-							InstallBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-
+							InstallBtn.Text = "Uninstall"; InstallBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
 							if Active.Enabled then
-								ToggleBtn.Text = "Disable"
-								ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
+								ToggleBtn.Text = "Disable"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
 								Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Running"}})
 							else
-								ToggleBtn.Text = "Enable"
-								ToggleBtn.BackgroundColor3 = Accent
+								ToggleBtn.Text = "Enable"; ToggleBtn.BackgroundColor3 = Accent
 								Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Installed"}})
 							end
-							-- Show update button if GitHub version > local version
 							UpdateBtn.Visible = (Active.Version ~= modData.Version)
 						end
 					end
 
-					-- [[ BUTTON CONNECTIONS ]]
-
-					-- 1. Install Logic
+					-- CONNECTIONS
 					InstallBtn.MouseButton1Click:Connect(function()
 						if not RunningMods[modData.Title] then
 							RunningMods[modData.Title] = {Version = modData.Version, Enabled = false}
@@ -2234,19 +2232,14 @@ function lib:CreateWindow(titleText)
 						SyncUI()
 					end)
 
-					-- 2. Toggle Logic
 					ToggleBtn.MouseButton1Click:Connect(function()
 						local Active = RunningMods[modData.Title]
 						if not Active then return end
-
 						if not Active.Enabled then
 							local modCode = loadstring(modData.Script)
 							if modCode then
 								local s, inst = pcall(modCode)
-								if s then 
-									Active.Instance = inst
-									Active.Enabled = true 
-								end
+								if s then Active.Instance = inst; Active.Enabled = true end
 							end
 						else
 							if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
@@ -2255,7 +2248,6 @@ function lib:CreateWindow(titleText)
 						SyncUI()
 					end)
 
-					-- 3. Update Logic
 					UpdateBtn.MouseButton1Click:Connect(function()
 						local Active = RunningMods[modData.Title]
 						if Active and Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
@@ -2268,7 +2260,7 @@ function lib:CreateWindow(titleText)
 			end)
 		end
 
-		-- 4. CREATE NATIVE REFRESH BUTTON
+		-- 3. CREATE NATIVE REFRESH BUTTON
 		local RefreshBtn = ModsTab:CreateButton("↻ Refresh Mod List", function()
 			LoadModCards()
 		end)
