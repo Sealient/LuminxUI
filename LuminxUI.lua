@@ -2114,12 +2114,32 @@ function lib:CreateWindow(titleText)
 		local ModList = {"testmod.lua"} 
 
 		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
-		local IsLoading = false -- Prevents duplicate loops
+		local IsLoading = false
 
-		-- 1. Precise Container Finder
+		-- 1. FIXED CONTAINER FINDER
 		local function GetTargetContainer()
-			-- In Luminx, the Tab object usually contains a ScrollingFrame named 'Page'
-			return ModsTab.Page or ModsTab.Container or ModsTab:FindFirstChildWhichIsA("ScrollingFrame", true)
+			-- First, check if the library explicitly gives us the Page instance
+			local container = ModsTab.Page or ModsTab.Container or ModsTab.Frame
+
+			-- If 'container' is still just a table, we hunt for the Instance inside the table
+			if type(container) == "table" then
+				for _, val in pairs(container) do
+					if typeof(val) == "Instance" and (val:IsA("ScrollingFrame") or val:IsA("Frame")) then
+						return val
+					end
+				end
+			elseif typeof(container) == "Instance" then
+				return container
+			end
+
+			-- Last resort: Scan the top-level ModsTab table for any Instance
+			for _, val in pairs(ModsTab) do
+				if typeof(val) == "Instance" and (val:IsA("ScrollingFrame") or val:IsA("Frame")) then
+					return val
+				end
+			end
+
+			return nil
 		end
 
 		local function GetCloudData(url)
@@ -2132,18 +2152,16 @@ function lib:CreateWindow(titleText)
 		-- 2. THE LOADING LOGIC
 		local function LoadModCards()
 			if IsLoading then return end
-			IsLoading = true
 
 			local TargetContainer = GetTargetContainer()
 
-			-- If UI isn't ready, wait once and exit this specific execution
 			if not TargetContainer then
-				task.delay(0.5, function() 
-					IsLoading = false
-					LoadModCards() 
-				end)
+				-- If not ready, wait and try again without marking IsLoading yet
+				task.delay(0.5, LoadModCards)
 				return
 			end
+
+			IsLoading = true
 
 			-- CLEAR: Remove only old mod cards
 			for _, child in pairs(TargetContainer:GetChildren()) do
@@ -2155,11 +2173,7 @@ function lib:CreateWindow(titleText)
 			task.spawn(function()
 				for _, fileName in pairs(ModList) do
 					local success, rawLua = GetCloudData(ModSource .. fileName)
-
-					if not success then 
-						warn("Luminx: Failed to fetch " .. fileName)
-						continue 
-					end
+					if not success then continue end
 
 					local dataFunc = loadstring(rawLua)
 					if not dataFunc then continue end
@@ -2170,7 +2184,7 @@ function lib:CreateWindow(titleText)
 					-- Create Card UI
 					local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
 						{Title = "Version", Description = modData.Version},
-						{Title = "Status", Description = "Ready"} -- Set to Ready immediately after load
+						{Title = "Status", Description = "Ready"}
 					})
 					Card.Name = "ModCard_" .. (modData.Title or "Unknown")
 
@@ -2197,7 +2211,6 @@ function lib:CreateWindow(titleText)
 
 					UpdateBtn.Visible = false
 
-					-- UI SYNC FUNCTION
 					local function SyncUI()
 						local Active = RunningMods[modData.Title]
 						if not Active then
@@ -2217,7 +2230,6 @@ function lib:CreateWindow(titleText)
 						end
 					end
 
-					-- CONNECTIONS
 					InstallBtn.MouseButton1Click:Connect(function()
 						if not RunningMods[modData.Title] then
 							RunningMods[modData.Title] = {Version = modData.Version, Enabled = false}
@@ -2254,7 +2266,7 @@ function lib:CreateWindow(titleText)
 
 					SyncUI()
 				end
-				IsLoading = false -- Finished loading
+				IsLoading = false
 			end)
 		end
 
