@@ -2111,9 +2111,22 @@ function lib:CreateWindow(titleText)
 	function lib:InitializeMods(WindowObj)
 		local Accent = self.CurrentAccent or Color3.fromRGB(0, 170, 255)
 		local ModSource = "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/"
-		local ModList = {"testmod.lua"}
+		local ModList = {"testmod.lua"} 
 
-		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
+		local ModsTab = WindowObj:CreateTab("Mods", "rbxassetid://10734949856")
+
+		-- 1. Create a Refresh Button in the Tab Header area
+		-- Note: Adjust the parent/position based on your specific Tab UI structure
+		local RefreshBtn = Instance.new("TextButton")
+		RefreshBtn.Name = "GlobalRefresh"
+		RefreshBtn.Size = UDim2.new(0, 30, 0, 30)
+		RefreshBtn.Position = UDim2.new(1, -35, 0, 5)
+		RefreshBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+		RefreshBtn.Text = "↻" -- Refresh Symbol
+		RefreshBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		RefreshBtn.TextSize = 18
+		RefreshBtn.Parent = ModsTab.Page -- Parents it to the tab's main container
+		Instance.new("UICorner", RefreshBtn).CornerRadius = UDim.new(0, 6)
 
 		local function GetCloudData(url)
 			local success, result = pcall(function()
@@ -2122,135 +2135,124 @@ function lib:CreateWindow(titleText)
 			return success, result
 		end
 
-		task.spawn(function()
-			for _, fileName in pairs(ModList) do
-				local success, rawLua = GetCloudData(ModSource .. fileName)
-				if not success then continue end
-
-				local dataFunc = loadstring(rawLua)
-				if not dataFunc then continue end
-
-				local _, modData = pcall(dataFunc)
-				if type(modData) ~= "table" then continue end
-
-				-- CREATE UI CARD
-				local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
-					{Title = "Version", Description = modData.Version},
-					{Title = "Status", Description = "Not Installed"}
-				})
-
-				-- [[ BUTTON FACTORY ]]
-				local function CreateModBtn(text, pos, color)
-					local b = Instance.new("TextButton")
-					b.Size = UDim2.new(0, 65, 0, 22)
-					b.Position = pos
-					b.AnchorPoint = Vector2.new(1, 0)
-					b.BackgroundColor3 = color
-					b.Text = text
-					b.Font = Enum.Font.GothamBold
-					b.TextColor3 = Color3.fromRGB(255, 255, 255)
-					b.TextSize = 10
-					b.ZIndex = 100
-					b.Parent = Card
-					Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-					return b
+		-- 2. Wrap the card creation in a function so we can call it anytime
+		local function LoadModCards()
+			-- Clear existing UI cards first (but keep the Refresh button)
+			for _, child in pairs(ModsTab.Page:GetChildren()) do
+				if child:IsA("Frame") and child.Name ~= "GlobalRefresh" then
+					child:Destroy()
 				end
-
-				-- Create the 3 Buttons
-				local UpdateBtn = CreateModBtn("Update", UDim2.new(1, -155, 0, 8), Color3.fromRGB(0, 180, 100))
-				local ToggleBtn = CreateModBtn("Enable", UDim2.new(1, -85, 0, 8), Color3.fromRGB(100, 100, 100))
-				local InstallBtn = CreateModBtn("Install", UDim2.new(1, -15, 0, 8), Accent)
-
-				UpdateBtn.Visible = false -- Hidden until version mismatch
-
-				-- [[ STATE MANAGER ]]
-				local function SyncUI()
-					local Active = RunningMods[modData.Title]
-
-					if not Active then
-						-- NOT INSTALLED
-						InstallBtn.Text = "Install"
-						InstallBtn.BackgroundColor3 = Accent
-						InstallBtn.AutoButtonColor = true
-
-						ToggleBtn.Text = "Enable"
-						ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-						ToggleBtn.AutoButtonColor = false
-
-						Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Not Installed"}})
-					else
-						-- INSTALLED
-						InstallBtn.Text = "Uninstall"
-						InstallBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-
-						if Active.Enabled then
-							ToggleBtn.Text = "Disable"
-							ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0) -- Orange/Gold for active
-							Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Running"}})
-						else
-							ToggleBtn.Text = "Enable"
-							ToggleBtn.BackgroundColor3 = Accent
-							Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Paused"}})
-						end
-
-						-- Check for Updates
-						UpdateBtn.Visible = (Active.Version ~= modData.Version)
-					end
-				end
-
-				-- [[ BUTTON LOGIC ]]
-
-				-- 1. INSTALL / UNINSTALL
-				InstallBtn.MouseButton1Click:Connect(function()
-					if not RunningMods[modData.Title] then
-						-- Install
-						RunningMods[modData.Title] = {Version = modData.Version, Enabled = false, Instance = nil}
-					else
-						-- Uninstall (Force Stop first)
-						local Active = RunningMods[modData.Title]
-						if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
-						RunningMods[modData.Title] = nil
-					end
-					SyncUI()
-				end)
-
-				-- 2. ENABLE / DISABLE
-				ToggleBtn.MouseButton1Click:Connect(function()
-					local Active = RunningMods[modData.Title]
-					if not Active then return end -- Can't toggle if not installed
-
-					if not Active.Enabled then
-						-- Running the script
-						local modCode = loadstring(modData.Script)
-						if modCode then
-							local s, inst = pcall(modCode)
-							if s then
-								Active.Instance = inst
-								Active.Enabled = true
-							end
-						end
-					else
-						-- Stopping the script
-						if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
-						Active.Enabled = false
-					end
-					SyncUI()
-				end)
-
-				-- 3. UPDATE
-				UpdateBtn.MouseButton1Click:Connect(function()
-					local Active = RunningMods[modData.Title]
-					if Active and Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
-
-					-- Re-install with new version
-					RunningMods[modData.Title] = {Version = modData.Version, Enabled = false, Instance = nil}
-					UpdateBtn.Visible = false
-					SyncUI()
-				end)
-
-				SyncUI() -- Run once at start
 			end
+
+			task.spawn(function()
+				for _, fileName in pairs(ModList) do
+					local success, rawLua = GetCloudData(ModSource .. fileName)
+					if not success then continue end
+
+					local dataFunc = loadstring(rawLua)
+					if not dataFunc then continue end
+
+					local _, modData = pcall(dataFunc)
+					if type(modData) ~= "table" then continue end
+
+					-- Create Card
+					local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
+						{Title = "Version", Description = modData.Version},
+						{Title = "Status", Description = "Checking..."}
+					})
+
+					-- Helper for Buttons
+					local function CreateModBtn(text, pos, color)
+						local b = Instance.new("TextButton")
+						b.Size = UDim2.new(0, 65, 0, 22)
+						b.Position = pos
+						b.AnchorPoint = Vector2.new(1, 0)
+						b.BackgroundColor3 = color
+						b.Text = text
+						b.Font = Enum.Font.GothamBold
+						b.TextColor3 = Color3.fromRGB(255, 255, 255)
+						b.TextSize = 10
+						b.ZIndex = 100
+						b.Parent = Card
+						Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
+						return b
+					end
+
+					local UpdateBtn = CreateModBtn("Update", UDim2.new(1, -155, 0, 8), Color3.fromRGB(0, 180, 100))
+					local ToggleBtn = CreateModBtn("Enable", UDim2.new(1, -85, 0, 8), Color3.fromRGB(100, 100, 100))
+					local InstallBtn = CreateModBtn("Install", UDim2.new(1, -15, 0, 8), Accent)
+
+					UpdateBtn.Visible = false
+
+					local function SyncUI()
+						local Active = RunningMods[modData.Title]
+						if not Active then
+							InstallBtn.Text = "Install"; InstallBtn.BackgroundColor3 = Accent
+							ToggleBtn.Text = "Enable"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+							Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Not Installed"}})
+						else
+							InstallBtn.Text = "Uninstall"; InstallBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
+							if Active.Enabled then
+								ToggleBtn.Text = "Disable"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
+								Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Running"}})
+							else
+								ToggleBtn.Text = "Enable"; ToggleBtn.BackgroundColor3 = Accent
+								Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Installed"}})
+							end
+							UpdateBtn.Visible = (Active.Version ~= modData.Version)
+						end
+					end
+
+					-- Button Click Connections
+					InstallBtn.MouseButton1Click:Connect(function()
+						if not RunningMods[modData.Title] then
+							RunningMods[modData.Title] = {Version = modData.Version, Enabled = false}
+						else
+							local Active = RunningMods[modData.Title]
+							if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+							RunningMods[modData.Title] = nil
+						end
+						SyncUI()
+					end)
+
+					ToggleBtn.MouseButton1Click:Connect(function()
+						local Active = RunningMods[modData.Title]
+						if not Active then return end
+						if not Active.Enabled then
+							local modCode = loadstring(modData.Script)
+							if modCode then
+								local s, inst = pcall(modCode)
+								if s then Active.Instance = inst; Active.Enabled = true end
+							end
+						else
+							if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+							Active.Enabled = false
+						end
+						SyncUI()
+					end)
+
+					UpdateBtn.MouseButton1Click:Connect(function()
+						local Active = RunningMods[modData.Title]
+						if Active and Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+						RunningMods[modData.Title] = {Version = modData.Version, Enabled = false}
+						SyncUI()
+					end)
+
+					SyncUI()
+				end
+			end)
+		end
+
+		-- 3. Connect Refresh Button
+		RefreshBtn.MouseButton1Click:Connect(function()
+			RefreshBtn.Text = "..."
+			LoadModCards()
+			task.wait(0.5)
+			RefreshBtn.Text = "↻"
 		end)
+
+		-- Initial Load
+		LoadModCards()
 	end
 
 	task.spawn(function()
