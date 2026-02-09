@@ -2193,21 +2193,33 @@ function lib:CreateWindow(titleText)
 							ActionBtn.MouseButton1Click:Connect(function()
 								local Active = RunningMods[modData.Title]
 
-								-- Update Handling
+								-- Handle Updates/Cleanup first
 								if Active and Active.Version ~= modData.Version then
 									if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
 									Active = nil
 								end
 
 								if not Active then
-									-- Enable Mod
-									local modCode, err = loadstring(modData.Script)
-									if modCode then
-										local s, instance = pcall(modCode)
-										if s then
-											RunningMods[modData.Title] = {Instance = instance, Version = modData.Version}
-											UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
-										end
+									-- [[ THE FIX IS HERE ]]
+									-- 1. Load the string into a function
+									local modCode, parseError = loadstring(modData.Script)
+
+									-- 2. Check if the code is valid
+									if not modCode then
+										warn("[Luminx Debug]: Syntax Error in Mod Script: " .. tostring(parseError))
+										UpdateUI("Error", "Check Console", Color3.fromRGB(255, 100, 100))
+										return
+									end
+
+									-- 3. Execute the function and capture the 'Mod' table it returns
+									local success, instance = pcall(modCode)
+
+									if success then
+										RunningMods[modData.Title] = {Instance = instance, Version = modData.Version}
+										UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
+									else
+										warn("[Luminx Debug]: Runtime Error inside Mod: " .. tostring(instance))
+										UpdateUI("Runtime Err", "Fix Script", Color3.fromRGB(255, 100, 100))
 									end
 								else
 									-- Disable Mod
@@ -2231,4 +2243,5 @@ function lib:CreateWindow(titleText)
 end
 
 return lib
+
 
