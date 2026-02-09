@@ -2116,7 +2116,7 @@ function lib:CreateWindow(titleText)
 		local ModList = {"testmod.lua"} -- Add your .lua files here
 
 		-- CREATE TAB
-		local ModsTab = WindowObj:CreateTab("Mods", "rbxassetid://10734949856")
+		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
 
 		-- SAFE NETWORK FETCHER
 		local function GetCloudData(url)
