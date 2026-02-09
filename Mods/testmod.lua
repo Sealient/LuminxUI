@@ -1,9 +1,15 @@
 return {
-    Title = "Flight Mod",
-    Version = "2.4.0",
-    Description = "Toggleable fly script for exploring the map.",
+    Title = "Test Mod",
+    Version = "1.1.0", -- Bump this to test the update button!
+    Description = "Now with Disable and Update support.",
     Script = [[
-        print("Flight Mod Activated!")
-        -- Put your actual fly code here
+        local mod = {}
+        print("Mod Started")
+        
+        mod.Stop = function()
+            print("Mod Stopped and Cleaned Up")
+        end
+        
+        return mod
     ]]
 }
