@@ -4,6 +4,7 @@ local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
 local CollectionService = game:GetService("CollectionService")
 
+local RunningMods = {}
 local lib = {}
 
 -- global accent color used by various UI elements (modifiable from Settings)
@@ -2111,88 +2112,49 @@ function lib:CreateWindow(titleText)
 		CreateDefaultSettings(lib, Window)
 	end)
 	
-	-- Add this inside your lib:CreateWindow function
-	local function InitializeMods()
-		print("[Luminx Debug]: Initializing Mods Tab...")
-
-		-- 1. Create the Tab immediately
-		local ModsTab = self:CreateTab("Mods", "rbxassetid://10734949856")
-
-		-- 2. Configuration
+	-- [[ 3. THE MOD SYSTEM (Integrated) ]]
+	function lib:InitializeMods(WindowObj)
+		-- Config
 		local ModSource = "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/"
-		local ModList = {"testmod.lua"} -- Add your filenames here
+		local ModList = {"testmod.lua"} 
 
-		-- 3. Environment-Aware Fetcher (Works in Studio & Executors)
+		-- Create the Tab (Ensuring we use the Window Object)
+		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
+
 		local function SafeFetch(url)
 			local success, result = pcall(function()
-				local isExecutor = (typeof(game.HttpGet) == "function")
-
-				if isExecutor then
-					-- Executors usually handle headers automatically
+				if type(game.HttpGet) == "function" then
 					return game:HttpGet(url)
 				else
-					-- Studio requires HttpService and specific security clearance
-					return game:GetService("HttpService"):GetAsync(url, true) -- 'true' enables cache-busting
+					-- Studio Fallback
+					return game:GetService("HttpService"):GetAsync(url, true)
 				end
 			end)
 			return success, result
 		end
 
-		-- 4. Loading Indicator
-		local LoadingLabel = Instance.new("TextLabel")
-		LoadingLabel.Size = UDim2.new(1, 0, 0, 40)
-		LoadingLabel.BackgroundTransparency = 1
-		LoadingLabel.Text = "Connecting to Cloud..."
-		LoadingLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
-		LoadingLabel.Font = Enum.Font.Gotham
-		LoadingLabel.TextSize = 12
-		LoadingLabel.Parent = ModsTab.Page
-
-		-- 5. Async Loader
 		task.spawn(function()
 			for _, fileName in pairs(ModList) do
-				local fullUrl = ModSource .. fileName
-				print("[Luminx Debug]: Fetching " .. fileName)
-
-				local success, result = SafeFetch(fullUrl)
+				local success, result = SafeFetch(ModSource .. fileName)
 
 				if success then
-					-- Parse the raw Lua string into a function
 					local modDataFunc, parseErr = loadstring(result)
-
 					if modDataFunc then
-						-- Execute function to get the data table
 						local dataSuccess, modData = pcall(modDataFunc)
 
 						if dataSuccess and type(modData) == "table" then
-							print("[Luminx Debug]: Successfully loaded " .. tostring(modData.Title))
-							if LoadingLabel then LoadingLabel:Destroy() end
-
-							-- Create the Card using your built-in DescriptionList
-							local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Unnamed Mod", {
+							-- UI Card
+							local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
 								{Title = "Version", Description = modData.Version or "1.0.0"},
-								{Title = "Status", Description = "Available"}
+								{Title = "Status", Description = "Ready"}
 							})
 
-							-- Add Mod Description text
-							local ModDesc = Instance.new("TextLabel")
-							ModDesc.Size = UDim2.new(1, -110, 0, 30)
-							ModDesc.Position = UDim2.new(0, 12, 0, 22)
-							ModDesc.BackgroundTransparency = 1
-							ModDesc.Text = modData.Description or "No description provided."
-							ModDesc.TextColor3 = Color3.fromRGB(140, 140, 140)
-							ModDesc.Font = Enum.Font.Gotham
-							ModDesc.TextSize = 11
-							ModDesc.TextWrapped = true
-							ModDesc.TextXAlignment = Enum.TextXAlignment.Left
-							ModDesc.Parent = Card
-
-							-- Create Action Button
+							-- Action Button
 							local ActionBtn = Instance.new("TextButton")
-							ActionBtn.Size = UDim2.new(0, 80, 0, 22)
-							ActionBtn.Position = UDim2.new(1, -10, 0, 5)
+							ActionBtn.Size = UDim2.size(0, 80, 0, 22)
+							ActionBtn.Position = UDim2.new(1, -10, 0, 6)
 							ActionBtn.AnchorPoint = Vector2.new(1, 0)
-							ActionBtn.BackgroundColor3 = self.CurrentAccent or Color3.fromRGB(0, 170, 255)
+							ActionBtn.BackgroundColor3 = lib.CurrentAccent
 							ActionBtn.Text = "Install"
 							ActionBtn.Font = Enum.Font.GothamBold
 							ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -2200,51 +2162,46 @@ function lib:CreateWindow(titleText)
 							ActionBtn.Parent = Card
 							Instance.new("UICorner", ActionBtn).CornerRadius = UDim.new(0, 4)
 
-							-- Link to Global Accent System
-							SetAccent(ActionBtn)
+							local function UpdateUI(status, btnText, color)
+								ActionBtn.Text = btnText
+								ActionBtn.BackgroundColor3 = color or lib.CurrentAccent
+								Methods:Update({
+									{Title = "Version", Description = modData.Version},
+									{Title = "Status", Description = status}
+								})
+							end
 
-							-- Installation Logic
 							ActionBtn.MouseButton1Click:Connect(function()
-								print("[Luminx Debug]: Executing script for " .. modData.Title)
-								local runSuccess, runErr = pcall(function()
-									-- Execute the mod's internal script string
-									assert(loadstring(modData.Script))()
-								end)
+								local Active = RunningMods[modData.Title]
 
-								if runSuccess then
-									ActionBtn.Text = "Enabled"
-									ActionBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-									ActionBtn.Interactable = false
-									Methods:Update({
-										{Title = "Version", Description = modData.Version},
-										{Title = "Status", Description = "Active"}
-									})
+								-- Update Logic
+								if Active and Active.Version ~= modData.Version then
+									if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+									Active = nil
+								end
+
+								if not Active then
+									local s, instance = pcall(loadstring(modData.Script))
+									if s then
+										RunningMods[modData.Title] = {Instance = instance, Version = modData.Version}
+										UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
+									end
 								else
-									warn("[Luminx Debug]: Mod Script Error: " .. tostring(runErr))
-									ActionBtn.Text = "Error"
-									ActionBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+									if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+									RunningMods[modData.Title] = nil
+									UpdateUI("Ready", "Install", lib.CurrentAccent)
 								end
 							end)
-						else
-							warn("[Luminx Debug]: " .. fileName .. " did not return a valid table.")
 						end
-					else
-						warn("[Luminx Debug]: Syntax error in " .. fileName .. ": " .. tostring(parseErr))
 					end
-				else
-					warn("[Luminx Debug]: Could not connect to GitHub for " .. fileName)
 				end
-			end
-
-			-- Cleanup if no mods were found
-			if LoadingLabel and LoadingLabel.Parent then
-				LoadingLabel.Text = "No mods found in the cloud."
 			end
 		end)
 	end
 
-	-- Run it automatically
-	InitializeMods()
+	task.defer(function()
+		self:InitializeMods(Window)
+	end)
 
 	return windowFunctions
 end
