@@ -2112,13 +2112,12 @@ function lib:CreateWindow(titleText)
 		CreateDefaultSettings(lib, Window)
 	end)
 	
-	-- [[ 3. THE MOD SYSTEM (Integrated) ]]
+	local RunningMods = {} 
+
 	function lib:InitializeMods(WindowObj)
-		-- Config
 		local ModSource = "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/"
 		local ModList = {"testmod.lua"} 
 
-		-- Create the Tab (Ensuring we use the Window Object)
 		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
 
 		local function SafeFetch(url)
@@ -2126,7 +2125,6 @@ function lib:CreateWindow(titleText)
 				if type(game.HttpGet) == "function" then
 					return game:HttpGet(url)
 				else
-					-- Studio Fallback
 					return game:GetService("HttpService"):GetAsync(url, true)
 				end
 			end)
@@ -2137,58 +2135,89 @@ function lib:CreateWindow(titleText)
 			for _, fileName in pairs(ModList) do
 				local success, result = SafeFetch(ModSource .. fileName)
 
-				-- DEBUG 1: Did the internet work?
-				if not success then
-					warn("[Luminx Debug]: Network Fail for " .. fileName .. " - " .. tostring(result))
-					continue 
-				end
-				print("[Luminx Debug]: Network Success for " .. fileName)
+				if success then
+					local modDataFunc, parseErr = loadstring(result)
+					if modDataFunc then
+						local dataSuccess, modData = pcall(modDataFunc)
 
-				local modDataFunc, parseErr = loadstring(result)
-				if modDataFunc then
-					local dataSuccess, modData = pcall(modDataFunc)
+						if dataSuccess and type(modData) == "table" then
+							-- 1. Create the Card
+							local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
+								{Title = "Version", Description = modData.Version or "1.0.0"},
+								{Title = "Status", Description = "Ready"}
+							})
 
-					if dataSuccess and type(modData) == "table" then
-						print("[Luminx Debug]: Creating UI for " .. modData.Title)
+							-- 2. Create the Install Button
+							-- Note: We parent it directly to the 'Card' frame
+							local ActionBtn = Instance.new("TextButton")
+							ActionBtn.Name = "ModInstallButton"
+							ActionBtn.Parent = Card 
 
-						-- [[ THE CRITICAL PART ]]
-						-- We use your library's method to create the card
-						local Card, Methods = ModsTab:CreateDescriptionList(modData.Title, {
-							{Title = "Version", Description = modData.Version},
-							{Title = "Status", Description = "Ready"}
-						})
+							-- Styling to match your UI
+							ActionBtn.Size = UDim2.new(0, 70, 0, 22)
+							-- Position it specifically in the top right area of the card
+							ActionBtn.Position = UDim2.new(1, -10, 0, 10) 
+							ActionBtn.AnchorPoint = Vector2.new(1, 0)
+							ActionBtn.BackgroundColor3 = lib.CurrentAccent
+							ActionBtn.BorderSizePixel = 0
+							ActionBtn.Text = "Install"
+							ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+							ActionBtn.Font = Enum.Font.GothamBold
+							ActionBtn.TextSize = 11
+							ActionBtn.ZIndex = 50 -- Force it above all other elements in the card
 
-						-- DEBUG 2: Check if the Card actually exists
-						if not Card then
-							warn("[Luminx Debug]: CreateDescriptionList failed to return a Frame!")
-							continue
+							local Corner = Instance.new("UICorner")
+							Corner.CornerRadius = UDim.new(0, 4)
+							Corner.Parent = ActionBtn
+
+							-- 3. UI Update Logic
+							local function UpdateUI(status, btnText, color)
+								ActionBtn.Text = btnText
+								ActionBtn.BackgroundColor3 = color or lib.CurrentAccent
+								Methods:Update({
+									{Title = "Version", Description = modData.Version},
+									{Title = "Status", Description = status}
+								})
+							end
+
+							-- 4. Initial State Persistence
+							if RunningMods[modData.Title] then
+								if RunningMods[modData.Title].Version ~= modData.Version then
+									UpdateUI("Update Found", "Update", Color3.fromRGB(0, 180, 100))
+								else
+									UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
+								end
+							end
+
+							-- 5. Click Logic
+							ActionBtn.MouseButton1Click:Connect(function()
+								local Active = RunningMods[modData.Title]
+
+								-- Update Handling
+								if Active and Active.Version ~= modData.Version then
+									if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+									Active = nil
+								end
+
+								if not Active then
+									-- Enable Mod
+									local modCode, err = loadstring(modData.Script)
+									if modCode then
+										local s, instance = pcall(modCode)
+										if s then
+											RunningMods[modData.Title] = {Instance = instance, Version = modData.Version}
+											UpdateUI("Active", "Disable", Color3.fromRGB(180, 50, 50))
+										end
+									end
+								else
+									-- Disable Mod
+									if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
+									RunningMods[modData.Title] = nil
+									UpdateUI("Ready", "Install", lib.CurrentAccent)
+								end
+							end)
 						end
-
-						-- Action Button
-						local ActionBtn = Instance.new("TextButton")
-						ActionBtn.Name = "ModActionButton"
-						ActionBtn.Size = UDim2.new(0, 80, 0, 22)
-						-- We force the position to the top right of the Card
-						ActionBtn.Position = UDim2.new(1, -10, 0, 8)
-						ActionBtn.AnchorPoint = Vector2.new(1, 0)
-						ActionBtn.BackgroundColor3 = lib.CurrentAccent
-						ActionBtn.Text = "Install"
-						ActionBtn.ZIndex = 10 -- Ensure it's on top
-						ActionBtn.Parent = Card -- Attaching it to the card frame
-
-						Instance.new("UICorner", ActionBtn).CornerRadius = UDim.new(0, 4)
-						print("[Luminx Debug]: Button Parented to " .. Card.Name)
-
-						-- [[ BUTTON LOGIC ]]
-						ActionBtn.MouseButton1Click:Connect(function()
-							print("[Luminx Debug]: Click detected for " .. modData.Title)
-							-- (Insert the Enable/Disable logic here)
-						end)
-					else
-						warn("[Luminx Debug]: Mod file didn't return a table.")
 					end
-				else
-					warn("[Luminx Debug]: Script error in GitHub file: " .. tostring(parseErr))
 				end
 			end
 		end)
