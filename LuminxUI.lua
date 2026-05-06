@@ -4,7 +4,6 @@ local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
 local CollectionService = game:GetService("CollectionService")
 
-
 local lib = {}
 
 -- global accent color used by various UI elements (modifiable from Settings)
@@ -49,7 +48,176 @@ local function CreateDefaultSettings(lib, Window)
 
 	-- Notifications
 	SettingsTab:CreateLabel("Notifications & Alerts")
+	SettingsTab:CreateToggle("Enable Notifications", true, function(state)
+		if lib.NotifContainer then lib.NotifContainer.Visible = state end
+	end)
 
+	SettingsTab:CreateButton("Clear Notifications", function()
+		lib:ClearAllNotifications() -- We'll define this helper method
+	end)
+
+	SettingsTab:CreateDivider()
+
+	-- System
+	SettingsTab:CreateLabel("System")
+	SettingsTab:CreateTextField("Custom UI Title", "Enter text...", function(text)
+		if Window.TitleLabel then
+			Window.TitleLabel.Text = string.upper(text)
+		end
+	end)
+
+	SettingsTab:CreateButton("Unload UI", function()
+		lib:CreatePopUp("Unload", "Are you sure you want to remove the UI?", function()
+			if lib.MainGui then lib.MainGui:Destroy() end
+		end)
+	end)
+end
+
+function lib:CreateWindow(titleText)
+	local Window = {}
+	Window.AccentElements = {}
+	local ScreenGui = Instance.new("ScreenGui")
+	ScreenGui.Name = "LuminxUI"
+	ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+	ScreenGui.ResetOnSpawn = false
+	self.MainGui = ScreenGui
+
+	function Window:UpdateAccent(newColor)
+		-- 1. Store the new color globally so new elements spawn with it
+		self.CurrentAccent = newColor
+		local TS = game:GetService("TweenService")
+		local tInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out)
+
+		-- 2. Iterate through every tagged element in the UI
+		for _, element in ipairs(game:GetService("CollectionService"):GetTagged("LuminxAccent")) do
+			if not element or not element.Parent then continue end
+
+			-- HANDLE STROKES (Borders)
+			if element:IsA("UIStroke") then
+				if element.Name == "DropdownStroke" or element.Name == "TextFieldStroke" then
+					-- Only update if the stroke isn't the "Inactive" White color
+					if element.Color ~= Color3.fromRGB(255, 255, 255) then
+						TS:Create(element, tInfo, {Color = newColor}):Play()
+					end
+				else
+					-- Standard themed strokes (Keybinds, PopUps)
+					TS:Create(element, tInfo, {Color = newColor}):Play()
+				end
+
+				-- HANDLE GRADIENTS (Dividers/Section Headers)
+			elseif element:IsA("UIGradient") then
+				element.Color = ColorSequence.new({
+					ColorSequenceKeypoint.new(0, newColor),
+					ColorSequenceKeypoint.new(0.5, newColor),
+					ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+				})
+
+				-- HANDLE TEXT (Titles, Icons, Multi-Dropdown Counters)
+			elseif element:IsA("TextLabel") or element:IsA("TextButton") then
+				-- If it's a TextButton acting as a Fill (like the PopUp Dismiss button)
+				if element.BackgroundTransparency < 0.5 then
+					TS:Create(element, tInfo, {BackgroundColor3 = newColor}):Play()
+				else
+					-- Otherwise, it's a label (Title, TextField Label)
+					if element.Name == "TextFieldLabel" then
+						-- Only update if focused (shrunken size) and not the "Inactive" Gray
+						if element.TextSize == 10 and element.TextColor3 ~= Color3.fromRGB(150, 150, 150) then
+							TS:Create(element, tInfo, {TextColor3 = newColor}):Play()
+						end
+					else
+						TS:Create(element, tInfo, {TextColor3 = newColor}):Play()
+					end
+				end
+
+				-- HANDLE IMAGES (Arrows and Icons)
+			elseif element:IsA("ImageLabel") then
+				TS:Create(element, tInfo, {ImageColor3 = newColor}):Play()
+
+				-- HANDLE FRAMES (Slider Fills, Toggles, Multi-Indicators)
+			elseif element:IsA("Frame") then
+				if element.Name == "MultiIndicator" then
+					-- Only update color if it's currently selected (visible)
+					if element.BackgroundTransparency < 1 then
+						TS:Create(element, tInfo, {BackgroundColor3 = newColor}):Play()
+					else
+						element.BackgroundColor3 = newColor -- Update silently
+					end
+				else
+					-- Standard fills (Slider, Toggle Knob)
+					TS:Create(element, tInfo, {BackgroundColor3 = newColor}):Play()
+				end
+			end
+		end
+	end
+
+	-- MAIN FRAME
+	local MainFrame = Instance.new("Frame")
+	MainFrame.Name = "MainFrame"
+	MainFrame.Size = UDim2.new(0, 650, 0, 420)
+	MainFrame.Position = UDim2.new(0.5, -325, 0.5, -210)
+	MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+	MainFrame.BackgroundTransparency = 0.1
+	MainFrame.BorderSizePixel = 0
+	MainFrame.Parent = ScreenGui
+	Window.MainFrame = MainFrame
+
+	local MainCorner = Instance.new("UICorner", MainFrame)
+	MainCorner.CornerRadius = UDim.new(0, 4)
+
+	local MainStroke = Instance.new("UIStroke", MainFrame)
+	MainStroke.Color = Color3.fromRGB(255, 255, 255)
+	MainStroke.Transparency = 0.9
+	MainStroke.Thickness = 1
+
+	-- SIDEBAR
+	local Sidebar = Instance.new("Frame")
+	Sidebar.Name = "Sidebar"
+	Sidebar.Size = UDim2.new(0, 170, 1, 0)
+	Sidebar.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	Sidebar.BackgroundTransparency = 0.4
+	Sidebar.BorderSizePixel = 0
+	Sidebar.ClipsDescendants = true -- Crucial: hides tabs that scroll out of view
+	Sidebar.Parent = MainFrame
+	Instance.new("UICorner", Sidebar).CornerRadius = UDim.new(0, 4)
+
+	-- DRAGGING LOGIC (Sidebar)
+	local dragging, dragInput, dragStart, startPos
+	Sidebar.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			dragging = true
+			dragStart = input.Position
+			startPos = MainFrame.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then dragging = false end
+			end)
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local delta = input.Position - dragStart
+			MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+
+	-- 1. CREATE PAGE CONTAINER FIRST (Crucial for the search to work)
+	local PageContainer = Instance.new("Frame")
+	PageContainer.Name = "PageContainer"
+	PageContainer.Size = UDim2.new(1, -170, 1, -60)
+	PageContainer.Position = UDim2.new(0, 170, 0, 60)
+	PageContainer.BackgroundTransparency = 1
+	PageContainer.Parent = MainFrame
+	Window.PageContainer = PageContainer
+
+	-- --- POLISHED SEARCH BAR ---
+	local SearchContainer = Instance.new("Frame")
+	SearchContainer.Name = "SearchContainer"
+	SearchContainer.Size = UDim2.new(1, -170, 0, 60)
+	SearchContainer.Position = UDim2.new(0, 170, 0, 0)
+	SearchContainer.BackgroundTransparency = 1
+	SearchContainer.Parent = MainFrame
+
+	local SearchFrame = Instance.new("Frame")
 	SearchFrame.Name = "SearchWrapper"
 	SearchFrame.Size = UDim2.new(1, -40, 0, 36) -- Slightly taller
 	SearchFrame.Position = UDim2.new(0, 20, 0, 12)
@@ -150,14 +318,187 @@ local function CreateDefaultSettings(lib, Window)
 					local isMatch = false
 
 					-- Check the item itself if it's a Button or Label
-
-					-- Removed mods system: InitializeMods and related UI
-					task.spawn(function()
-						CreateDefaultSettings(lib, Window)
-					end)
-
-					return windowFunctions
+					if (item:IsA("TextButton") or item:IsA("TextLabel")) and item.Visible then
+						local txt = item.Text:lower()
+						if txt:find(RawInput) or txt:gsub("%s+", ""):find(CleanInput) then
+							isMatch = true
+						end
 					end
+
+					-- Also scan descendants (for Frames that contain Labels/Buttons)
+					if not isMatch then
+						for _, desc in ipairs(item:GetDescendants()) do
+							if (desc:IsA("TextLabel") or desc:IsA("TextButton")) and desc.Visible then
+								local txt = desc.Text:lower()
+								if txt:find(RawInput) or txt:gsub("%s+", ""):find(CleanInput) then
+									isMatch = true
+									break
+								end
+							end
+						end
+					end
+
+					-- FORCE visibility based on match
+					item.Visible = isMatch
+					if isMatch then resultsFound = resultsFound + 1 end
+				end
+			end
+		end
+
+		-- Toggle "No Results" and Border Feedback
+		if RawInput ~= "" and resultsFound == 0 then
+			NoResults.Visible = true
+			TweenService:Create(SStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(200, 80, 80)}):Play()
+		else
+			NoResults.Visible = false
+			local targetColor = FeatureSearch:IsFocused() and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(255, 255, 255)
+			TweenService:Create(SStroke, TweenInfo.new(0.2), {Color = targetColor}):Play()
+		end
+	end)
+
+	local Title = Instance.new("TextLabel")
+	Title.Size = UDim2.new(1, 0, 0, 60)
+	Title.BackgroundTransparency = 1
+	Title.Text = string.upper(titleText)
+	Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Title.Font = Enum.Font.RobotoMono
+	Title.TextSize = 15
+	Title.Parent = Sidebar
+
+	local Separator = Instance.new("Frame")
+	Separator.Size = UDim2.new(0.7, 0, 0, 1)
+	Separator.Position = UDim2.new(0.15, 0, 0, 60)
+	Separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	Separator.BackgroundTransparency = 0.9
+	Separator.Parent = Sidebar
+
+	local Layout = Instance.new("UIListLayout", TabHolder)
+	Layout.Padding = UDim.new(0, 2)
+	Layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	local Title = Instance.new("TextLabel")
+	Title.Size = UDim2.new(1, 0, 0, 60)
+	Title.BackgroundTransparency = 1
+	Title.Text = string.upper(titleText)
+	Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Title.Font = Enum.Font.RobotoMono
+	Title.TextSize = 15
+	Title.Parent = Sidebar
+
+	local Separator = Instance.new("Frame")
+	Separator.Size = UDim2.new(0.7, 0, 0, 1)
+	Separator.Position = UDim2.new(0.15, 0, 0, 60)
+	Separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	Separator.BackgroundTransparency = 0.9
+	Separator.Parent = Sidebar
+
+	local TabHolder = Instance.new("ScrollingFrame")
+	TabHolder.Name = "TabHolder"
+	-- POSITION: Push it down (e.g., 40 pixels) so it doesn't hit the top
+	TabHolder.Position = UDim2.new(0, 0, 0, 60) 
+	-- SIZE: Subtract that offset from the height so it doesn't go off the bottom
+	TabHolder.Size = UDim2.new(1, 0, 1, -135) 
+	TabHolder.BackgroundTransparency = 1
+	TabHolder.BorderSizePixel = 0
+	TabHolder.ScrollBarThickness = 2
+	TabHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
+	TabHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	TabHolder.Parent = Sidebar
+
+	local SidebarLayout = Instance.new("UIListLayout", TabHolder)
+	SidebarLayout.Padding = UDim.new(0, 2)
+	SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	local Layout = Instance.new("UIListLayout", TabHolder)
+	Layout.Padding = UDim.new(0, 2)
+	Layout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	-- Floating profile in the bottom-left of the sidebar
+	local profileFrame = Instance.new("Frame", Sidebar)
+	profileFrame.Name = "Profile"
+	profileFrame.Size = UDim2.new(0, 150, 0, 48)
+	profileFrame.Position = UDim2.new(0, 10, 1, -62)
+	profileFrame.BackgroundColor3 = Color3.fromRGB(40,42,46)
+	profileFrame.BackgroundTransparency = 0
+	profileFrame.BorderSizePixel = 0
+	profileFrame.ZIndex = 20
+	profileFrame.ClipsDescendants = false
+	Instance.new("UICorner", profileFrame).CornerRadius = UDim.new(0,6)
+	local profileStroke = Instance.new("UIStroke", profileFrame)
+	profileStroke.Color = Color3.fromRGB(35,35,35)
+	profileStroke.Transparency = 0.7
+	profileStroke.Thickness = 1
+
+	-- avatar background (circular) to ensure we always have a visible circle behind the image
+	local avatarBG = Instance.new("Frame", profileFrame)
+	avatarBG.Name = "AvatarBG"
+	avatarBG.Size = UDim2.new(0,36,0,36)
+	avatarBG.Position = UDim2.new(0,8,0,6)
+	avatarBG.BackgroundColor3 = Color3.fromRGB(96,96,96)
+	avatarBG.BorderSizePixel = 0
+	-- ensure the avatar background sits behind text
+	avatarBG.ZIndex = 21
+	Instance.new("UICorner", avatarBG).CornerRadius = UDim.new(1,0)
+
+	local avatar = Instance.new("ImageLabel", avatarBG)
+	avatar.Name = "Avatar"
+	avatar.Size = UDim2.new(1,0,1,0)
+	avatar.Position = UDim2.new(0,0,0,0)
+	avatar.BackgroundTransparency = 1
+	avatar.ScaleType = Enum.ScaleType.Fit
+	avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(game.Players.LocalPlayer.UserId) .. "&w=48&h=48"
+	avatar.ZIndex = 22
+	Instance.new("UICorner", avatar).CornerRadius = UDim.new(1,0)
+
+	-- info container to avoid overlap with avatar (centered name + stats)
+	local infoFrame = Instance.new("Frame", profileFrame)
+	infoFrame.Name = "Info"
+	infoFrame.Position = UDim2.new(0,52,0,6)
+	infoFrame.Size = UDim2.new(1,-64,1,-12)
+	infoFrame.BackgroundTransparency = 1
+	-- keep info above avatar
+	infoFrame.ZIndex = 23
+
+	local nameLbl = Instance.new("TextLabel", infoFrame)
+	nameLbl.Name = "Name"
+	nameLbl.Position = UDim2.new(0,0,0,0)
+	nameLbl.Size = UDim2.new(1,0,0,14)
+	nameLbl.BackgroundTransparency = 1
+	nameLbl.Text = game.Players.LocalPlayer.Name
+	nameLbl.Font = Enum.Font.RobotoMono
+	nameLbl.TextSize = 12
+	nameLbl.TextColor3 = Color3.fromRGB(255,255,255)
+	nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+	nameLbl.TextScaled = false
+	nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLbl.ZIndex = 24
+	nameLbl.TextTransparency = 0
+	if not nameLbl.Text or nameLbl.Text == "" then nameLbl.Text = game.Players.LocalPlayer.Name or "Player" end
+	nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+	-- stats row (fps / ping / version)
+	local statsFrame = Instance.new("Frame", infoFrame)
+	statsFrame.Name = "Stats"
+	statsFrame.Position = UDim2.new(0,0,0,18)
+	statsFrame.Size = UDim2.new(1,0,0,12)
+	statsFrame.BackgroundTransparency = 1
+	statsFrame.ZIndex = 23
+
+	local fpsLbl = Instance.new("TextLabel", statsFrame)
+	fpsLbl.Name = "FPS"
+	fpsLbl.Size = UDim2.new(0.33, -6, 1, 0)
+	fpsLbl.Position = UDim2.new(0, 0, 0, 0)
+	fpsLbl.BackgroundTransparency = 1
+	fpsLbl.Text = "-- FPS"
+	fpsLbl.Font = Enum.Font.RobotoMono
+	fpsLbl.TextSize = 10
+	fpsLbl.TextColor3 = Color3.fromRGB(200,200,200)
+	fpsLbl.TextXAlignment = Enum.TextXAlignment.Left
+	fpsLbl.ZIndex = 24
+	fpsLbl.TextTransparency = 0
+
+	local pingLbl = Instance.new("TextLabel", statsFrame)
+	pingLbl.Name = "Ping"
 	pingLbl.Size = UDim2.new(0.34, -6, 1, 0)
 	pingLbl.Position = UDim2.new(0.33, 3, 0, 0)
 	pingLbl.BackgroundTransparency = 1
@@ -1766,184 +2107,8 @@ local function CreateDefaultSettings(lib, Window)
 		return tab
 	end
 
-	function lib:InitializeMods(WindowObj)
-		local Accent = self.CurrentAccent or Color3.fromRGB(0, 170, 255)
-		local ModSource = "https://raw.githubusercontent.com/Sealient/LuminxUI/main/Mods/"
-		local ModList = {"testmod.lua"} 
-
-		local ModsTab = lib:CreateTab("Mods", "rbxassetid://10734949856")
-		local IsLoading = false
-
-		-- 1. FIXED CONTAINER FINDER
-		local function GetTargetContainer()
-			-- First, check if the library explicitly gives us the Page instance
-			local container = ModsTab.Page or ModsTab.Container or ModsTab.Frame
-
-			-- If 'container' is still just a table, we hunt for the Instance inside the table
-			if type(container) == "table" then
-				for _, val in pairs(container) do
-					if typeof(val) == "Instance" and (val:IsA("ScrollingFrame") or val:IsA("Frame")) then
-						return val
-					end
-				end
-			elseif typeof(container) == "Instance" then
-				return container
-			end
-
-			-- Last resort: Scan the top-level ModsTab table for any Instance
-			for _, val in pairs(ModsTab) do
-				if typeof(val) == "Instance" and (val:IsA("ScrollingFrame") or val:IsA("Frame")) then
-					return val
-				end
-			end
-
-			return nil
-		end
-
-		local function GetCloudData(url)
-			local success, result = pcall(function()
-				return (type(game.HttpGet) == "function") and game:HttpGet(url) or game:GetService("HttpService"):GetAsync(url, true)
-			end)
-			return success, result
-		end
-
-		-- 2. THE LOADING LOGIC
-		local function LoadModCards()
-			if IsLoading then return end
-
-			local TargetContainer = GetTargetContainer()
-
-			if not TargetContainer then
-				-- If not ready, wait and try again without marking IsLoading yet
-				task.delay(0.5, LoadModCards)
-				return
-			end
-
-			IsLoading = true
-
-			-- CLEAR: Remove only old mod cards
-			for _, child in pairs(TargetContainer:GetChildren()) do
-				if child:IsA("Frame") and child.Name ~= "PersistentRefreshButton" then
-					child:Destroy()
-				end
-			end
-
-			task.spawn(function()
-				for _, fileName in pairs(ModList) do
-					local success, rawLua = GetCloudData(ModSource .. fileName)
-					if not success then continue end
-
-					local dataFunc = loadstring(rawLua)
-					if not dataFunc then continue end
-
-					local _, modData = pcall(dataFunc)
-					if type(modData) ~= "table" then continue end
-
-					-- Create Card UI
-					local Card, Methods = ModsTab:CreateDescriptionList(modData.Title or "Mod", {
-						{Title = "Version", Description = modData.Version},
-						{Title = "Status", Description = "Ready"}
-					})
-					Card.Name = "ModCard_" .. (modData.Title or "Unknown")
-
-					-- MINI-BUTTON CREATOR
-					local function CreateSmallBtn(text, pos, color)
-						local b = Instance.new("TextButton")
-						b.Size = UDim2.new(0, 65, 0, 22)
-						b.Position = pos
-						b.AnchorPoint = Vector2.new(1, 0)
-						b.BackgroundColor3 = color
-						b.Text = text
-						b.Font = Enum.Font.GothamBold
-						b.TextColor3 = Color3.fromRGB(255, 255, 255)
-						b.TextSize = 10
-						b.ZIndex = 100
-						b.Parent = Card
-						Instance.new("UICorner", b).CornerRadius = UDim.new(0, 4)
-						return b
-					end
-
-					local UpdateBtn = CreateSmallBtn("Update", UDim2.new(1, -155, 0, 8), Color3.fromRGB(0, 180, 100))
-					local ToggleBtn = CreateSmallBtn("Enable", UDim2.new(1, -85, 0, 8), Color3.fromRGB(100, 100, 100))
-					local InstallBtn = CreateSmallBtn("Install", UDim2.new(1, -15, 0, 8), Accent)
-
-					UpdateBtn.Visible = false
-
-					local function SyncUI()
-						local Active = RunningMods[modData.Title]
-						if not Active then
-							InstallBtn.Text = "Install"; InstallBtn.BackgroundColor3 = Accent
-							ToggleBtn.Text = "Enable"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-							Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Ready"}})
-						else
-							InstallBtn.Text = "Uninstall"; InstallBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-							if Active.Enabled then
-								ToggleBtn.Text = "Disable"; ToggleBtn.BackgroundColor3 = Color3.fromRGB(200, 150, 0)
-								Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Running"}})
-							else
-								ToggleBtn.Text = "Enable"; ToggleBtn.BackgroundColor3 = Accent
-								Methods:Update({{Title = "Version", Description = modData.Version}, {Title = "Status", Description = "Installed"}})
-							end
-							UpdateBtn.Visible = (Active.Version ~= modData.Version)
-						end
-					end
-
-					InstallBtn.MouseButton1Click:Connect(function()
-						if not RunningMods[modData.Title] then
-							RunningMods[modData.Title] = {Version = modData.Version, Enabled = false}
-						else
-							local Active = RunningMods[modData.Title]
-							if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
-							RunningMods[modData.Title] = nil
-						end
-						SyncUI()
-					end)
-
-					ToggleBtn.MouseButton1Click:Connect(function()
-						local Active = RunningMods[modData.Title]
-						if not Active then return end
-						if not Active.Enabled then
-							local modCode = loadstring(modData.Script)
-							if modCode then
-								local s, inst = pcall(modCode)
-								if s then Active.Instance = inst; Active.Enabled = true end
-							end
-						else
-							if Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
-							Active.Enabled = false
-						end
-						SyncUI()
-					end)
-
-					UpdateBtn.MouseButton1Click:Connect(function()
-						local Active = RunningMods[modData.Title]
-						if Active and Active.Instance and Active.Instance.Stop then pcall(Active.Instance.Stop) end
-						RunningMods[modData.Title] = {Version = modData.Version, Enabled = false}
-						SyncUI()
-					end)
-
-					SyncUI()
-				end
-				IsLoading = false
-			end)
-		end
-
-		-- 3. CREATE NATIVE REFRESH BUTTON
-		local RefreshBtn = ModsTab:CreateButton("↻ Refresh Mod List", function()
-			LoadModCards()
-		end)
-		RefreshBtn.Name = "PersistentRefreshButton"
-
-		-- Initial Run
-		LoadModCards()
-	end
-
 	task.spawn(function()
 		CreateDefaultSettings(lib, Window)
-	end)
-
-	task.defer(function()
-		self:InitializeMods(Window)
 	end)
 
 	return windowFunctions
