@@ -4,7 +4,7 @@ local RunService = game:GetService("RunService")
 local TextService = game:GetService("TextService")
 local CollectionService = game:GetService("CollectionService")
 
-local RunningMods = {}
+-- local RunningMods = {} -- Removed mods system
 local lib = {}
 
 -- global accent color used by various UI elements (modifiable from Settings)
@@ -319,187 +319,14 @@ function lib:CreateWindow(titleText)
 					local isMatch = false
 
 					-- Check the item itself if it's a Button or Label
-					if (item:IsA("TextButton") or item:IsA("TextLabel")) and item.Visible then
-						local txt = item.Text:lower()
-						if txt:find(RawInput) or txt:gsub("%s+", ""):find(CleanInput) then
-							isMatch = true
-						end
+
+					-- Removed mods system: InitializeMods and related UI
+					task.spawn(function()
+						CreateDefaultSettings(lib, Window)
+					end)
+
+					return windowFunctions
 					end
-
-					-- Also scan descendants (for Frames that contain Labels/Buttons)
-					if not isMatch then
-						for _, desc in ipairs(item:GetDescendants()) do
-							if (desc:IsA("TextLabel") or desc:IsA("TextButton")) and desc.Visible then
-								local txt = desc.Text:lower()
-								if txt:find(RawInput) or txt:gsub("%s+", ""):find(CleanInput) then
-									isMatch = true
-									break
-								end
-							end
-						end
-					end
-
-					-- FORCE visibility based on match
-					item.Visible = isMatch
-					if isMatch then resultsFound = resultsFound + 1 end
-				end
-			end
-		end
-
-		-- Toggle "No Results" and Border Feedback
-		if RawInput ~= "" and resultsFound == 0 then
-			NoResults.Visible = true
-			TweenService:Create(SStroke, TweenInfo.new(0.2), {Color = Color3.fromRGB(200, 80, 80)}):Play()
-		else
-			NoResults.Visible = false
-			local targetColor = FeatureSearch:IsFocused() and Color3.fromRGB(0, 170, 255) or Color3.fromRGB(255, 255, 255)
-			TweenService:Create(SStroke, TweenInfo.new(0.2), {Color = targetColor}):Play()
-		end
-	end)
-
-	local Title = Instance.new("TextLabel")
-	Title.Size = UDim2.new(1, 0, 0, 60)
-	Title.BackgroundTransparency = 1
-	Title.Text = string.upper(titleText)
-	Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	Title.Font = Enum.Font.RobotoMono
-	Title.TextSize = 15
-	Title.Parent = Sidebar
-
-	local Separator = Instance.new("Frame")
-	Separator.Size = UDim2.new(0.7, 0, 0, 1)
-	Separator.Position = UDim2.new(0.15, 0, 0, 60)
-	Separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	Separator.BackgroundTransparency = 0.9
-	Separator.Parent = Sidebar
-
-	local Layout = Instance.new("UIListLayout", TabHolder)
-	Layout.Padding = UDim.new(0, 2)
-	Layout.SortOrder = Enum.SortOrder.LayoutOrder
-
-	local Title = Instance.new("TextLabel")
-	Title.Size = UDim2.new(1, 0, 0, 60)
-	Title.BackgroundTransparency = 1
-	Title.Text = string.upper(titleText)
-	Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	Title.Font = Enum.Font.RobotoMono
-	Title.TextSize = 15
-	Title.Parent = Sidebar
-
-	local Separator = Instance.new("Frame")
-	Separator.Size = UDim2.new(0.7, 0, 0, 1)
-	Separator.Position = UDim2.new(0.15, 0, 0, 60)
-	Separator.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-	Separator.BackgroundTransparency = 0.9
-	Separator.Parent = Sidebar
-
-	local TabHolder = Instance.new("ScrollingFrame")
-	TabHolder.Name = "TabHolder"
-	-- POSITION: Push it down (e.g., 40 pixels) so it doesn't hit the top
-	TabHolder.Position = UDim2.new(0, 0, 0, 60) 
-	-- SIZE: Subtract that offset from the height so it doesn't go off the bottom
-	TabHolder.Size = UDim2.new(1, 0, 1, -135) 
-	TabHolder.BackgroundTransparency = 1
-	TabHolder.BorderSizePixel = 0
-	TabHolder.ScrollBarThickness = 2
-	TabHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
-	TabHolder.AutomaticCanvasSize = Enum.AutomaticSize.Y
-	TabHolder.Parent = Sidebar
-
-	local SidebarLayout = Instance.new("UIListLayout", TabHolder)
-	SidebarLayout.Padding = UDim.new(0, 2)
-	SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-	local Layout = Instance.new("UIListLayout", TabHolder)
-	Layout.Padding = UDim.new(0, 2)
-	Layout.SortOrder = Enum.SortOrder.LayoutOrder
-
-	-- Floating profile in the bottom-left of the sidebar
-	local profileFrame = Instance.new("Frame", Sidebar)
-	profileFrame.Name = "Profile"
-	profileFrame.Size = UDim2.new(0, 150, 0, 48)
-	profileFrame.Position = UDim2.new(0, 10, 1, -62)
-	profileFrame.BackgroundColor3 = Color3.fromRGB(40,42,46)
-	profileFrame.BackgroundTransparency = 0
-	profileFrame.BorderSizePixel = 0
-	profileFrame.ZIndex = 20
-	profileFrame.ClipsDescendants = false
-	Instance.new("UICorner", profileFrame).CornerRadius = UDim.new(0,6)
-	local profileStroke = Instance.new("UIStroke", profileFrame)
-	profileStroke.Color = Color3.fromRGB(35,35,35)
-	profileStroke.Transparency = 0.7
-	profileStroke.Thickness = 1
-
-	-- avatar background (circular) to ensure we always have a visible circle behind the image
-	local avatarBG = Instance.new("Frame", profileFrame)
-	avatarBG.Name = "AvatarBG"
-	avatarBG.Size = UDim2.new(0,36,0,36)
-	avatarBG.Position = UDim2.new(0,8,0,6)
-	avatarBG.BackgroundColor3 = Color3.fromRGB(96,96,96)
-	avatarBG.BorderSizePixel = 0
-	-- ensure the avatar background sits behind text
-	avatarBG.ZIndex = 21
-	Instance.new("UICorner", avatarBG).CornerRadius = UDim.new(1,0)
-
-	local avatar = Instance.new("ImageLabel", avatarBG)
-	avatar.Name = "Avatar"
-	avatar.Size = UDim2.new(1,0,1,0)
-	avatar.Position = UDim2.new(0,0,0,0)
-	avatar.BackgroundTransparency = 1
-	avatar.ScaleType = Enum.ScaleType.Fit
-	avatar.Image = "rbxthumb://type=AvatarHeadShot&id=" .. tostring(game.Players.LocalPlayer.UserId) .. "&w=48&h=48"
-	avatar.ZIndex = 22
-	Instance.new("UICorner", avatar).CornerRadius = UDim.new(1,0)
-
-	-- info container to avoid overlap with avatar (centered name + stats)
-	local infoFrame = Instance.new("Frame", profileFrame)
-	infoFrame.Name = "Info"
-	infoFrame.Position = UDim2.new(0,52,0,6)
-	infoFrame.Size = UDim2.new(1,-64,1,-12)
-	infoFrame.BackgroundTransparency = 1
-	-- keep info above avatar
-	infoFrame.ZIndex = 23
-
-	local nameLbl = Instance.new("TextLabel", infoFrame)
-	nameLbl.Name = "Name"
-	nameLbl.Position = UDim2.new(0,0,0,0)
-	nameLbl.Size = UDim2.new(1,0,0,14)
-	nameLbl.BackgroundTransparency = 1
-	nameLbl.Text = game.Players.LocalPlayer.Name
-	nameLbl.Font = Enum.Font.RobotoMono
-	nameLbl.TextSize = 12
-	nameLbl.TextColor3 = Color3.fromRGB(255,255,255)
-	nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-	nameLbl.TextScaled = false
-	nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
-	nameLbl.ZIndex = 24
-	nameLbl.TextTransparency = 0
-	if not nameLbl.Text or nameLbl.Text == "" then nameLbl.Text = game.Players.LocalPlayer.Name or "Player" end
-	nameLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-	-- stats row (fps / ping / version)
-	local statsFrame = Instance.new("Frame", infoFrame)
-	statsFrame.Name = "Stats"
-	statsFrame.Position = UDim2.new(0,0,0,18)
-	statsFrame.Size = UDim2.new(1,0,0,12)
-	statsFrame.BackgroundTransparency = 1
-	statsFrame.ZIndex = 23
-
-	local fpsLbl = Instance.new("TextLabel", statsFrame)
-	fpsLbl.Name = "FPS"
-	fpsLbl.Size = UDim2.new(0.33, -6, 1, 0)
-	fpsLbl.Position = UDim2.new(0, 0, 0, 0)
-	fpsLbl.BackgroundTransparency = 1
-	fpsLbl.Text = "-- FPS"
-	fpsLbl.Font = Enum.Font.RobotoMono
-	fpsLbl.TextSize = 10
-	fpsLbl.TextColor3 = Color3.fromRGB(200,200,200)
-	fpsLbl.TextXAlignment = Enum.TextXAlignment.Left
-	fpsLbl.ZIndex = 24
-	fpsLbl.TextTransparency = 0
-
-	local pingLbl = Instance.new("TextLabel", statsFrame)
-	pingLbl.Name = "Ping"
 	pingLbl.Size = UDim2.new(0.34, -6, 1, 0)
 	pingLbl.Position = UDim2.new(0.33, 3, 0, 0)
 	pingLbl.BackgroundTransparency = 1
@@ -2292,4 +2119,3 @@ function lib:CreateWindow(titleText)
 end
 
 return lib
-
